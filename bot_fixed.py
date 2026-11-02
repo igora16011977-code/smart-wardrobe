@@ -1,25 +1,31 @@
-﻿import asyncio
+﻿import os
+import asyncio
 import logging
-import base64
 import requests
 import sqlite3
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, executor
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from groq import Groq
+from dotenv import load_dotenv
 
-# Усі ключі зібрані тут з виправленими помилками та доданим дефісом
-TELEGRAM_TOKEN = "8980208249:AAGYq5ohv_5SFKY9UbG-dp13RucE9LzsbN4"
-GROQ_API_KEY = "gsk_DoGE5TIKIG4I4m74pv7NWGdyb3FYu-ZnRFcykn6eSYSCKw07wqSFV"
-WEATHER_API_KEY = "ec787296b70be02f50d617c141b62b61"
-DB_NAME = "wardrobe.db"
+# Завантажуємо токени з файлу .env
+load_dotenv()
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+DB_NAME = os.getenv("DB_NAME", "wardrobe.db")
+
+if not TELEGRAM_TOKEN:
+    raise ValueError("Помилка: TELEGRAM_TOKEN не знайдено у файлі .env!")
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
-client = Groq(api_key=GROQ_API_KEY)
+
+# ==================== ЛОГІКА ПОГОДИ (БЕЗ ШІ) ====================
 
 def get_weather(city: str = "Kyiv") -> dict:
+    """Отримує актуальну погоду через OpenWeather API"""
     url = "https://openweathermap.org"
     params = {"q": city, "appid": WEATHER_API_KEY, "units": "metric", "lang": "uk"}
     try:
@@ -33,10 +39,35 @@ def get_weather(city: str = "Kyiv") -> dict:
                 "feels_like": round(data["main"]["feels_like"]),
                 "humidity": data["main"]["humidity"]
             }
-        else:
-            return {"success": True, "temp": 18, "description": "хмарно з проясненнями", "feels_like": 17, "humidity": 60}
-    except Exception:
-        return {"success": True, "temp": 15, "description": "прохолодно", "feels_like": 14, "humidity": 65}
+    except Exception as e:
+        logging.error(f"Помилка отримання погоди: {e}")
+    
+    # Резервний варіант, якщо сервер погоди не відповів
+    return {"success": False, "temp": 15, "description": "мінлива хмарність", "feels_like": 14, "humidity": 60}
+
+def get_recommendation_by_weather(weather_data: dict) -> str:
+    """Функція замість ШІ, яка дає чітку пораду залежно від температури"""
+    temp = weather_data["temp"]
+    desc = weather_data["description"]
+    feels_like = weather_data.get("feels_like", temp)
+    
+    advice = f"🌤 **Погода зараз:** {temp}°C (відчувається як {feels_like}°C), {desc}.\n\n"
+    advice += "👔 **Рекомендація щодо одягу:**\n"
+    
+    if temp < 0:
+        advice += "🥶 Дуже холодно! Одягайте теплий пуховик, шапку, шарф та рукавички. З гардероба оберіть найтепліші светри та зимове взуття."
+    elif 0 <= temp < 10:
+        advice += "🍂 Холодно. Рекомендуємо тепле пальто або куртку, черевики, щільний худі чи джемпер."
+    elif 10 <= temp < 18:
+        advice += "🌤 Помірна прохолода. Підійде легка куртка, вітровка, тренч, щільні джинси та кросівки або туфлі."
+    elif 18 <= temp < 25:
+        advice += "☀️ Комфортно і тепло. Можна впевнено одягати лонгслів, сорочку, джинси або штани-чінос."
+    else:
+        advice += "🔥 Спекотно! Найкращий вибір — футболка, шорти, легка сукня та відкрите взуття."
+        
+    return advice
+
+# ==================== РОБОТА З БАЗОЮ ДАНИХ ====================
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -54,96 +85,42 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_clothing(user_id: int, file_id: str, description: str):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO clothes (user_id, file_id, description) VALUES (?, ?, ?)', (user_id, file_id, description))
-    conn.commit()
-    conn.close()
+init_db()
 
-def get_user_wardrobe(user_id: int):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, file_id, description FROM clothes WHERE user_id = ?', (user_id,))
-    items = cursor.fetchall()
-    conn.close()
-    return items
+# ==================== КЛАВІАТУРА ТА ОБРОБНИКИ БОТА ====================
 
-main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-main_keyboard.add(KeyboardButton("🌤️ Що вдягнути сьогодні?"), KeyboardButton("👗 Мій гардероб"))
+# Створюємо просте меню для користувача
+main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+main_menu.add(KeyboardButton("🌤 Що мені одягти?"))
 
 @dp.message_handler(commands=['start'])
-async def cmd_start(message):
-    init_db()
-    await message.answer("Привіт! Я твій Розумний Гардероб 🧥🤖\n\nНадішли мені фото одягу або скористайся меню нижче.", reply_markup=main_keyboard)
+async def send_welcome(message):
+    await message.answer(
+        "👋 Привіт! Я твій персональний розумний гардероб.\n"
+        "Натисни кнопку нижче, щоб отримати пораду щодо одягу за поточною погодою!",
+        reply_markup=main_menu
+    )
 
-@dp.message_handler(Text(equals="👗 Мій гардероб"))
-async def show_wardrobe(message):
-    items = get_user_wardrobe(message.from_user.id)
-    if not items:
-        await message.answer("Твій гардероб порожній. Надішли фото одягу!")
-        return
-    await message.answer(f"📦 У твоєму гардеробі речей: {len(items)}:")
-    for item in items:
-        await message.answer_photo(photo=item[1], caption=f"✨ {item[2]}")
-
-@dp.message_handler(Text(equals="🌤️ Що вдягнути сьогодні?"))
-async def get_outfit(message):
-    await message.answer("🔄 Перевіряю погоду та аналізую ваш гардероб...")
-    weather_data = get_weather()
-    raw_items = get_user_wardrobe(message.from_user.id)
-    wardrobe_list = [item[2] for item in raw_items]
+@dp.message_handler(Text(equals="🌤 Що мені одягти?"))
+async def give_advice(message):
+    # Отримуємо погоду (можна замінити на ваше місто, наприклад, "Lviv")
+    weather = get_weather("Kyiv")
+    # Генеруємо текстову пораду без залучення Groq/Llama
+    recommendation = get_recommendation_by_weather(weather)
     
-    items_text = ", ".join(wardrobe_list) if wardrobe_list else "Гардероб порожній."
-    prompt = f"Ти персональний стиліст. Погода: {weather_data['temp']} градусів, {weather_data['description']}. Речі: {items_text}. Склади стильний образ на сьогодні. Напиши відповідь коротко українською мовою."
+    await message.answer(recommendation)
+
+# ==================== ЗАПУСК БОТА (ДЛЯ НОВИХ ВЕРСІЙ PYTHON) ====================
+
+if __name__ == '__main__':
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
     try:
-        response = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7, max_tokens=500
-        )
-        await message.answer(response.choices[0].message.content)
-    except Exception as e:
-        await message.answer(f"❌ Помилка ШІ: {str(e)}")
+        logging.info("Бот успішно стартував без ШІ!")
+        executor.start_polling(dp, skip_updates=True, loop=loop)
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Бот зупинений користувачем!")
 
-@dp.message_handler(content_types=['photo'])
-async def handle_clothing_photo(message):
-    await message.answer("🤖 ШІ розпізнає твій одяг, зачекай трішки...")
-    photo = message.photo[-1]
-    
-    try:
-        file_info = await bot.get_file(photo.file_id)
-        file_success = await bot.download_file(file_info.file_path)
-        image_bytes = file_success.read()
-        
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        prompt = "Що це за одяг? Визнач річ, колір, стиль та погоду. Лаконічно, 2-3 речення українською мовою."
-        
-        response = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                ]
-            }],
-            timeout=20
-        )
-        description = response.choices[0].message.content
-        add_clothing(message.from_user.id, photo.file_id, description)
-        await message.answer(f"✅ Додано до гардеробу!\n\n**Опис від ШІ:**\n{description}", parse_mode="Markdown")
-    except Exception as e:
-        await message.answer(f"❌ Помилка обробки фото: {str(e)}")
 
-async def run_bot():
-    init_db()
-    print("🤖 АВТОНОМНИЙ БОТ ЗАПУСКАЄТЬСЯ... Перейдіть у Telegram!")
-    try:
-        await dp.start_polling(reset_webhook=True)
-    finally:
-        await bot.close()
 
-if __name__ == "__main__":
-    asyncio.run(run_bot())
