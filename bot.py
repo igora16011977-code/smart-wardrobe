@@ -168,8 +168,9 @@ def _filter_items_by_category(raw_items, category_target):
         db_cat = (item[3] if isinstance(item, (tuple, list)) and len(item) > 3 else "Інше").lower()
         
         if category_target == "верх":
-            if "верх" in db_cat or any(w in desc_lower for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр", "топ"]):
+            if "верх" in db_cat or any(w in desc_lower for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр", "топ", "майка", "бодік", "костюмчик"]):
                 filtered.append(item)
+
         elif category_target == "низ":
             if "низ" in db_cat or any(w in desc_lower for w in ["джинси", "штани", "брюки", "карго", "джоггери", "шорти", "спідниця"]):
                 filtered.append(item)

@@ -78,10 +78,10 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     for model_name in ["llama3-8b-8192", "qwen/qwen3.8-27b"]:
         try:
             response = client.chat.completions.create(
-                model=model_name,
+                model=model_name,  # <--- ЦЕЙ РЯДОК ЗАЛИШАЄТЬСЯ НА МІСЦІ!
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,  # Максимальна точність виконання шаблону й інструкцій негоди
-                max_tokens=350
+                temperature=0.0,
+                max_tokens=800  
             )
             if response and response.choices:
                 content = response.choices[0].message.content
@@ -89,6 +89,8 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
                     return content.strip()
         except Exception:
             continue
+            
+    return "Не вдалося зібрати валізу. Спробуйте пізніше."
             
     return "Не вдалося отримати відповідь від ШІ стиліста. Спробуйте пізніше."
 
