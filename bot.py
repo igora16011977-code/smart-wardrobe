@@ -10,6 +10,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import config
 import database
 import weather
+import ai_stylist
 
 logging.basicConfig(level=logging.INFO)
 
