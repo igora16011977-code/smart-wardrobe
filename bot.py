@@ -12,6 +12,25 @@ import database
 import weather
 import ai_stylist
 
+import threading
+import http.server
+import socketserver
+import os
+
+def run_dummy_server():
+    # Render автоматично передає порт у змінну оточення PORT
+    port = int(os.environ.get("PORT", 8080))
+    handler = http.server.SimpleHTTPRequestHandler
+    # Дозволяємо повторне використання порту
+    socketserver.TCPServer.allow_reuse_address = True
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        print(f"🌍 Dummy server started on port {port}")
+        httpd.serve_forever()
+
+# Запускаємо сервер у фоновому потоці, щоб він не заважав роботу Telegram-бота
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
+
 logging.basicConfig(level=logging.INFO)
 
 storage = MemoryStorage()
