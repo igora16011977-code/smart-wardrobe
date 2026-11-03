@@ -6,19 +6,20 @@ import config
 client = Groq(api_key=config.GROQ_API_KEY)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через модель Qwen"""
+    """Розпізнає фото одягу через модель Llama Vision"""
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
     prompt = "Подивись на це фото одягу. Визнач, що це за річ, колір, стиль та погоду. 2-3 речення українською."
     
     try:
         response = client.chat.completions.create(
-            model="qwen/qwen3.8-27b", 
+            model="llama-3.2-11b-vision-preview", # <-- ЗАМІНІТЬ НАЗВУ МОДЕЛІ ТУТ
             messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
             timeout=20
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"Помилка аналізу зображення: {str(e)}"
+
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     """Генерує суворо один текстовий багатошаровий образ на сьогодні з урахуванням дощу та снігу."""
