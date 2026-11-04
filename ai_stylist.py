@@ -60,71 +60,52 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
         return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
 
 
-def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
-    """Генерує текстовий образ на сьогодні через перевірену модель Qwen з виведенням помилок."""
+def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
+    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen."""
+    import database
     if not wardrobe_items:
-        return "Гардероб порожній. Завантаж фото одягу, щоб ШІ міг скласти образ!"
+        return "Твій гардероб повністю порожній. Щоб знайти прогалини, завантаж фото одягу!"
     
     try:
-        # Приводимо речі з БД до чистого тексту, навіть якщо це кортежі (tuples)
-        clean_items = []
-        for item in wardrobe_items:
-            if isinstance(item, (tuple, list)):
-                # Беремо перший текстовий елемент, якщо це запис із бази даних
-                clean_items.append(str(item[0] if item else ""))
-            else:
-                clean_items.append(str(item))
+        clean_items = [str(item if isinstance(item, (tuple, list)) else item) for item in wardrobe_items]
+        items_text = "\n- ".join(clean_items)
         
-        items_text = "\n- ".join([i for i in clean_items if i.strip()])
-        
-        rain_volume = weather_info.get("rain", 0)
-        snow_volume = weather_info.get("snow", 0)
-        weather_alert_instruction = ""
-        
-        if rain_volume > 0:
-            weather_alert_instruction = "\n⚠️ УВАГА СТИЛІСТУ: Зараз іде ДОЩ! Додай у полі 'Прикраси/Аксесуари' ПАРАСОЛЮ.\n"
-        elif snow_volume > 0:
-            weather_alert_instruction = "\n⚠️ УВАГА СТИЛІСТУ: Зараз іде СНІГ! Додай теплі аксесуари (рукавички, шапка, шарф).\n"
+        db_products = database.get_all_shopping_items()
+        products_links_feed = ""
+        for prod in db_products:
+            name, price, url, category, gender = prod
+            products_links_feed += f"- [{name} ({price} грн)]({url} '{name.lower()}') [Категорія: {category}, Для кого: {gender}]\n"
         
         prompt = (
-            f"Ти професійний стиліст.\n"
-            f"Склади для користувача СУВОРO ОДИН готовий образ під подію '{event}' та погоду {weather_info['temp']}°C, {weather_info['description']}.\n"
-            f"{weather_alert_instruction}"
-            f"\nСПИСОК РЕЧЕЙ КОРИСТУВАЧА:\n- {items_text}\n\n"
-            f"Заповни цей шаблон назвами з наявного списку:\n"
-            f"👕 Базовий верх: [назва однієї речі]\n"
-            f"🧥 Середній шар: [назва речі або Не потрібно]\n"
-            f"🧥 Верхній одяг: [назва речі або Не потрібно]\n"
-            f"👖 Низ: [назва лише однієї речі]\n"
-            f"👟 Взуття: [актуальне взуття]\n"
-            f"📿 Прикраси/Аксесуари: [аксесуари]\n"
-            f"✨ Обґрунтування образа: [коротке речення]"
+            f"Ти професійний стиліст і ревізор гардеробу.\n"
+            f"Поточна погода: {weather_info['temp']}°C, {weather_info['description']}.\n\n"
+            f"НАЯВНИЙ ГАРДЕРОБ КОРИСТУВАЧА:\n- {items_text}\n\n"
+            f"Запропонуй користувачу докупити РІВНО 2 речі з бази:\n"
+            f"{products_links_feed}\n"
+            f"Шаблон відповіді:\n"
+            f"🔎 **Аналіз гардеробу:** ...\n"
+            f"🛒 **Що варто докупити:**\n1. [Назва](URL) — чому\n2. [Назва](URL) — чому"
         )
         
         client = get_groq_client()
         if not client:
-            return "Помилка: Ключ GROQ_API_KEY не знайдено в налаштуваннях бота!"
+            return "Помилка: Ключ GROQ_API_KEY не знайдено!"
 
         response = client.chat.completions.create(
             model="qwen/qwen3.8-27b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=800  
+            max_tokens=550
         )
         
+        # ВИПРАВЛЕНО: беремо перший елемент списку [0] за допомогою індексу
         if response and hasattr(response, 'choices') and len(response.choices) > 0:
             first_choice = response.choices[0]
             if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
                 return first_choice.message.content.strip()
-            elif isinstance(first_choice, dict):
-                return first_choice.get('message', {}).get('content', '')
-            
-        return "Не вдалося розібрати текстову відповідь від ШІ."
+        return "Не вдалося розібрати рекомендації для шопінгу."
     except Exception as e:
-        # Повертаємо справжню причину поломки на екран Telegram!
-        return f"Помилка всередині функції стиліста: {str(e)}"
-
-
+        return f"Помилка аналізу шопінгу: {str(e)}"
 
 
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
