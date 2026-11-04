@@ -18,32 +18,38 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через офіційну модель OpenAI gpt-4o-mini"""
+    """Розпізнає фото одягу через НОВУ чинну модель Groq Llama 3.2 90B Vision"""
+    import base64
+    import os
+    import config
+    from groq import Groq
+
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
     prompt = "Подивись на це фото одягу. Визнач, що це за річ, колір, стиль та погоду. 2-3 речення українською."
     
     try:
-        client = get_openai_client()
-        if not client:
-            return "Помилка: Ключ OPENAI_API_KEY не знайдено в конфігурації бота!"
+        api_key = getattr(config, "GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
+        if not api_key:
+            return "Помилка: Ключ GROQ_API_KEY не знайдено!"
             
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="llama-3.2-90b-vision-preview", # Нова потужна безкоштовна модель з підтримкою зору!
             messages=[
                 {
-                    "role": "user",
+                    "role": "user", 
                     "content": [
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": prompt}, 
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }
             ],
-            max_tokens=150,
-            timeout=25
+            timeout=20
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"Помилка аналізу зображення через OpenAI: {str(e)}"
+        return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
+
 
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
