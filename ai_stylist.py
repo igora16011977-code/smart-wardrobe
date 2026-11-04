@@ -128,48 +128,97 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
 
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
-    """Генерує компактний капсульний набір речей у валізу."""
+    """Генерує компактний капсульний набір речей у валізу через модель Qwen."""
     if not wardrobe_items:
         return "Гардероб порожній."
     
-    formatted_items = [item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item) for item in wardrobe_items]
-    items_text = "\n- ".join(formatted_items)
-    days_count = min(int(days_count), len(forecast_data.get("days", []))) if forecast_data.get("days") else int(days_count)
-    
-    avg_temp = forecast_data.get("temp", 15)
-    unique_conditions = forecast_data.get("description", "мінлива хмарність")
+    try:
+        clean_items = [str(item[0] if isinstance(item, (tuple, list)) else item) for item in wardrobe_items]
+        items_text = "\n- ".join(clean_items)
+        days_count = min(int(days_count), len(forecast_data.get("days", []))) if forecast_data.get("days") else int(days_count)
+        
+        avg_temp = forecast_data.get("temp", 15)
+        unique_conditions = forecast_data.get("description", "мінлива хмарність")
 
-    prompt = (
-        f"Ти професійний стиліст, експерт із капсульного гардероба.\n"
-        f"Користувач збирає мінімалістичну валізу на {days_count} днів у місто {forecast_data.get('city', 'Київ')}.\n"
-        f"Прогноз погоди: в середньому {avg_temp}°C, очікується: {unique_conditions}.\n\n"
-        f"ДОСТУПНИЙ ГАРДЕРОБ КОРИСТУВАЧА:\n- {items_text}\n\n"
-        f"Заповни шаблон назвами речей з гардероба:\n"
-        f"🎒 **КАПСУЛЬНА ВАЛІЗА:**\n"
-        f"👕 **Верх**:\n- [назви речей]\n"
-        f"👖 **Низ**:\n- [назви речей]\n"
-        f"🧥 **Верхній одяг / Взуття**:\n- [варіанти]\n"
-        f"💡 **Комбінації на кожен день**:\n[коротко]"
-    )
-    
-    client = get_groq_client()
-    if not client:
-        return "Помилка: Ключ GROQ_API_KEY не знайдено!"
+        prompt = (
+            f"Ти професійний стиліст, експерт із капсульного гардероба.\n"
+            f"Користувач збирає мінімалістичну валізу на {days_count} днів у місто {forecast_data.get('city', 'Київ')}.\n"
+            f"Прогноз погоди: в середньому {avg_temp}°C, очікується: {unique_conditions}.\n\n"
+            f"ДОСТУПНИЙ ГАРДЕРОБ КОРИСТУВАЧА:\n- {items_text}\n\n"
+            f"Заповни шаблон назвами речей з гардероба:\n"
+            f"🎒 **КАПСУЛЬНА ВАЛІЗА:**\n"
+            f"👕 **Верх**:\n- [назви речей]\n"
+            f"👖 **Низ**:\n- [назви речей]\n"
+            f"🧥 **Верхній одяг / Взуття**:\n- [варіанти]\n"
+            f"💡 **Комбінації на кожен день**:\n[коротко]"
+        )
+        
+        client = get_groq_client()
+        if not client:
+            return "Помилка: Ключ GROQ_API_KEY не знайдено!"
 
-    for model_name in ["llama-3.1-8b-instant", "llama3-8b-8192"]:
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=800  
-            )
-            if response and response.choices:
-                return response.choices[0].message.content.strip()
-        except Exception:
-            continue
-            
-    return "Не вдалося зібрати валізу. Спробуйте пізніше."
+        response = client.chat.completions.create(
+            model="qwen/qwen3.8-27b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=800  
+        )
+        
+        if response and hasattr(response, 'choices') and len(response.choices) > 0:
+            first_choice = response.choices[0]
+            if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
+                return first_choice.message.content.strip()
+        return "Не вдалося розібрати відповідь від ШІ подорожей."
+    except Exception as e:
+        return f"Помилка збору валізи: {str(e)}"
+
+
+def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
+    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen."""
+    import database
+    if not wardrobe_items:
+        return "Твій гардероб повністю порожній. Щоб знайти прогалини, завантаж фото одягу!"
+    
+    try:
+        clean_items = [str(item[0] if isinstance(item, (tuple, list)) else item) for item in wardrobe_items]
+        items_text = "\n- ".join(clean_items)
+        
+        db_products = database.get_all_shopping_items()
+        products_links_feed = ""
+        for prod in db_products:
+            name, price, url, category, gender = prod
+            products_links_feed += f"- [{name} ({price} грн)]({url} '{name.lower()}') [Категорія: {category}, Для кого: {gender}]\n"
+        
+        prompt = (
+            f"Ти професійний стиліст і ревізор гардеробу.\n"
+            f"Поточна погода: {weather_info['temp']}°C, {weather_info['description']}.\n\n"
+            f"НАЯВНИЙ ГАРДЕРОБ КОРИСТУВАЧА:\n- {items_text}\n\n"
+            f"Запропонуй користувачу докупити РІВНО 2 речі з бази:\n"
+            f"{products_links_feed}\n"
+            f"Шаблон відповіді:\n"
+            f"🔎 **Аналіз гардеробу:** ...\n"
+            f"🛒 **Що варто докупити:**\n1. [Назва](URL) — чому\n2. [Назва](URL) — чому"
+        )
+        
+        client = get_groq_client()
+        if not client:
+            return "Помилка: Ключ GROQ_API_KEY не знайдено!"
+
+        response = client.chat.completions.create(
+            model="qwen/qwen3.8-27b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=550
+        )
+        
+        if response and hasattr(response, 'choices') and len(response.choices) > 0:
+            first_choice = response.choices[0]
+            if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
+                return first_choice.message.content.strip()
+        return "Не вдалося розібрати рекомендації для шопінгу."
+    except Exception as e:
+        return f"Помилка аналізу шопінгу: {str(e)}"
+
 
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
