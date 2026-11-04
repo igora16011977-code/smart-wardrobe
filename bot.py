@@ -10,7 +10,6 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import subprocess
 import sys
 
-# Примусове встановлення openai прямо під час старту на Render
 try:
     import openai
 except ImportError:
