@@ -18,7 +18,7 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через НОВУ чинну модель Groq Llama 3.2 90B Vision"""
+    """Розпізнає фото одягу через НОВУ актуальну модель Groq Llama 3.2 11B Vision"""
     import base64
     import os
     import config
@@ -30,11 +30,11 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     try:
         api_key = getattr(config, "GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
         if not api_key:
-            return "Помилка: Ключ GROQ_API_KEY не знайдено!"
+            return "Помилка: Ключ GROQ_API_KEY не знайдено в налаштуваннях!"
             
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview", # Нова потужна безкоштовна модель з підтримкою зору!
+            model="llama-3.2-11b-vision-preview", # Стабільна робоча модель із підтримкою зору!
             messages=[
                 {
                     "role": "user", 
@@ -49,7 +49,6 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
         return response.choices[0].message.content
     except Exception as e:
         return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
-
 
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
