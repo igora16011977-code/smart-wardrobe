@@ -18,7 +18,7 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через НОВУ актуальну модель Groq Llama 3.2 11B Vision"""
+    """Розпізнає фото одягу через НОВУ безкоштовну мультимодальну модель на Groq"""
     import base64
     import os
     import config
@@ -34,7 +34,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview", # Стабільна робоча модель із підтримкою зору!
+            model="qwen/qwen3.8-27b", # Повністю чинна й безкоштовна модель з підтримкою зору!
             messages=[
                 {
                     "role": "user", 
@@ -46,7 +46,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             ],
             timeout=20
         )
-        return response.choices[0].message.content
+        return response.choices.message.content
     except Exception as e:
         return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
 
