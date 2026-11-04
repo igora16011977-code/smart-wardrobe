@@ -61,7 +61,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
 
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
-    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen."""
+    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen з виведенням помилок."""
     import database
     if not wardrobe_items:
         return "Твій гардероб повністю порожній. Щоб знайти прогалини, завантаж фото одягу!"
@@ -71,6 +71,9 @@ def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -
         items_text = "\n- ".join(clean_items)
         
         db_products = database.get_all_shopping_items()
+        if not db_products:
+            return "У базі даних бота немає завантажених товарів для шопінгу (таблиця shopping_items порожня)!"
+            
         products_links_feed = ""
         for prod in db_products:
             name, price, url, category, gender = prod
@@ -98,14 +101,15 @@ def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -
             max_tokens=550
         )
         
-        # ВИПРАВЛЕНО: беремо перший елемент списку [0] за допомогою індексу
         if response and hasattr(response, 'choices') and len(response.choices) > 0:
             first_choice = response.choices[0]
             if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
                 return first_choice.message.content.strip()
         return "Не вдалося розібрати рекомендації для шопінгу."
     except Exception as e:
+        # Виводимо точну причину поломки в чат Телеграм
         return f"Помилка аналізу шопінгу: {str(e)}"
+
 
 
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
