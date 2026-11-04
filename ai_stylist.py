@@ -47,15 +47,13 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             timeout=20
         )
         
-        # Безпечно дістаємо текст відповіді, враховуючи специфіку Qwen на Groq
-        if response and response.choices:
-            choice = response.choices[0]
-            if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
-                return choice.message.content.strip()
-            elif hasattr(choice, 'text'):
-                return choice.text.strip()
-            elif isinstance(choice, dict):
-                return choice.get('message', {}).get('content', choice.get('text', ''))
+        # Виправлено: беремо перший елемент списку [0]
+        if response and hasattr(response, 'choices') and len(response.choices) > 0:
+            first_choice = response.choices[0]
+            if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
+                return first_choice.message.content.strip()
+            elif isinstance(first_choice, dict):
+                return first_choice.get('message', {}).get('content', '')
                 
         return "Не вдалося розібрати відповідь від ШІ."
     except Exception as e:
