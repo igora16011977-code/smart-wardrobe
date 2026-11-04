@@ -18,7 +18,7 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через діючу безкоштовну мультимодальну модель Qwen на Groq"""
+    """Розпізнає фото одягу через нову безкоштовну мультимодальну модель Qwen на Groq"""
     import base64
     import os
     import config
@@ -34,7 +34,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="qwen/qwen3.8-27b", # Актуальна безкоштовна модель з підтримкою зору на Groq!
+            model="qwen/qwen3.8-27b",
             messages=[
                 {
                     "role": "user", 
@@ -46,7 +46,18 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             ],
             timeout=20
         )
-        return response.choices.message.content
+        
+        # Безпечно дістаємо текст відповіді, враховуючи специфіку Qwen на Groq
+        if response and response.choices:
+            choice = response.choices[0]
+            if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
+                return choice.message.content.strip()
+            elif hasattr(choice, 'text'):
+                return choice.text.strip()
+            elif isinstance(choice, dict):
+                return choice.get('message', {}).get('content', choice.get('text', ''))
+                
+        return "Не вдалося розібрати відповідь від ШІ."
     except Exception as e:
         return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
 
