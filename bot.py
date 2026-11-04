@@ -430,28 +430,44 @@ async def process_trip_days(message, state: FSMContext):
 @dp.message_handler(Text(equals="🛍️ Чого не вистачає?"), state="*")
 async def check_wardrobe_gaps(message):
     user_id = message.from_user.id
-    raw_items = database.get_user_wardrobe(user_id)
     
+    try:
+        raw_items = database.get_user_wardrobe(user_id)
+    except Exception as e:
+        await message.answer(f"❌ Помилка доступу до бази даних: {str(e)}")
+        return
+
     if not raw_items:
         await message.answer("Твій гардероб порожній! Завантаж фото одягу, щоб я міг знайти прогалини.")
         return
-        
+
     await message.answer("🔄 Проводжу ревізію вашої шафи, аналізую клімат та шукаю прогалини в асортименті...")
-    
-    # Визначаємо домашнє місто користувача для точного підбору під клімат
-    user_city = database.get_user_city(user_id)
-    weather_data = weather.get_weather(city=user_city)
-    
+
+    # Безпечно визначаємо місто користувача та погоду
+    try:
+        user_city = database.get_user_city(user_id) or "Київ"
+        weather_data = weather.get_weather(city=user_city)
+    except Exception:
+        weather_data = {"temp": 15, "description": "мінлива хмарність"}
+
+    # ЗАХИЩЕНА ПІДГОТОВКА РЕЧЕЙ (Виправляє IndexError / KeyError)
     clean_items_for_ai = []
     for item in raw_items:
-        desc = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)
-        clean_items_for_ai.append(desc)
+        if isinstance(item, (tuple, list)):
+            # Перевіряємо всі можливі елементи кортежу, щоб знайти текст
+            text_elements = [str(x) for x in item if x and isinstance(x, str) and len(x) > 2]
+            desc = text_elements[0] if text_elements else str(item[0] if len(item) > 0 else item)
+        else:
+            desc = str(item)
+        if desc:
+            clean_items_for_ai.append(desc)
 
-    # Делегуємо всю роботу з ШІ та моделями Groq модулю ai_stylist (без прямих викликів моделей тут)
-    shopping_list = ai_stylist.generate_shopping_recommendation(weather_data, clean_items_for_ai)
-    
-    await message.answer(shopping_list, parse_mode="Markdown")
-
+    # Делегуємо роботу ШІ-стилісту з перехопленням будь-яких внутрішніх помилок
+    try:
+        shopping_list = ai_stylist.generate_shopping_recommendation(weather_data, clean_items_for_ai)
+        await message.answer(shopping_list, parse_mode="Markdown")
+    except Exception as e:
+        await message.answer(f"❌ Помилка ШІ стиліста при аналізі: {str(e)}")
 
 
 @dp.message_handler(content_types=['photo'], state="*")
