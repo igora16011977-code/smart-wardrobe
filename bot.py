@@ -7,6 +7,19 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
+import subprocess
+import sys
+
+# Примусове встановлення openai прямо під час старту на Render
+try:
+    import openai
+except ImportError:
+    print("🤖 Бібліотеку openai не знайдено. Встановлюю примусово...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai"])
+    import openai
+    print("✅ Бібліотеку openai успішно встановлено прямо в процесі!")
+
+
 import config
 import database
 import weather
