@@ -18,7 +18,7 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Розпізнає фото одягу через НОВУ безкоштовну мультимодальну модель на Groq"""
+    """Розпізнає фото одягу через діючу безкоштовну мультимодальну модель Qwen на Groq"""
     import base64
     import os
     import config
@@ -34,7 +34,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="qwen/qwen3.8-27b", # Повністю чинна й безкоштовна модель з підтримкою зору!
+            model="qwen/qwen3.8-27b", # Актуальна безкоштовна модель з підтримкою зору на Groq!
             messages=[
                 {
                     "role": "user", 
