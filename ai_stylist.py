@@ -60,7 +60,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
         return f"Помилка аналізу зображення через Groq Vision: {str(e)}"
 
 
-def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
+def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list, *args, **kwargs) -> str:
     """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen з виведенням помилок."""
     import database
     if not wardrobe_items:
