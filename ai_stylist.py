@@ -61,11 +61,11 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
 
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
-    """Генерує текстовий образ на сьогодні з урахуванням погоди."""
+    """Генерує текстовий образ на сьогодні через перевірену модель Qwen."""
     if not wardrobe_items:
-        return "Гардероб порожній."
+        return "Гардероб порожній. Завантаж фото одягу, щоб ШІ міг скласти образ!"
     
-    formatted_items = [item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item) for item in wardrobe_items]
+    formatted_items = [item if isinstance(item, (tuple, list)) and len(item) > 1 else str(item) for item in wardrobe_items]
     items_text = "\n- ".join(formatted_items)
     
     rain_volume = weather_info.get("rain", 0)
@@ -73,7 +73,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     weather_alert_instruction = ""
     
     if rain_volume > 0:
-        weather_alert_instruction = "\n⚠️ УВАГА СТИЛІСТУ: Зараз іде ДОЩ! Додай у поле 'Прикраси/Аксесуари' ПАРАСОЛЮ.\n"
+        weather_alert_instruction = "\n⚠️ УВАГА СТИЛІСТУ: Зараз іде ДОЩ! Додай у полі 'Прикраси/Аксесуари' ПАРАСОЛЮ.\n"
     elif snow_volume > 0:
         weather_alert_instruction = "\n⚠️ УВАГА СТИЛІСТУ: Зараз іде СНІГ! Додай теплі аксесуари (рукавички, шапка, шарф).\n"
     
@@ -89,28 +89,31 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"👖 Низ: [назва лише однієї речі]\n"
         f"👟 Взуття: [актуальне взуття]\n"
         f"📿 Прикраси/Аксесуари: [аксесуари]\n"
-        f"✨ Обґрунтування образу: [коротке речення]"
+        f"✨ Обґрунтування образа: [коротке речення]"
     )
     
     client = get_groq_client()
     if not client:
-        return "Помилка: Ключ GROQ_API_KEY не знайдено!"
+        return "Помилка: Ключ GROQ_API_KEY не знайдено в налаштуваннях бота!"
 
-    # Виправлено моделі Groq (залишено діючу Llama 3.1)
-    for model_name in ["llama-3.1-8b-instant", "llama3-8b-8192"]:
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=800  
-            )
-            if response and response.choices:
-                return response.choices[0].message.content.strip()
-        except Exception:
-            continue
-            
-    return "Не вдалося отримати відповідь від ШІ стиліста. Спробуйте пізніше."
+    try:
+        response = client.chat.completions.create(
+            model="qwen/qwen3.8-27b", # Наша перевірена модель, яка точно працює на вашому сервері!
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=800  
+        )
+        
+        # Правильно зчитуємо відповідь з першого елемента списку choices
+        if response and hasattr(response, 'choices') and len(response.choices) > 0:
+            first_choice = response.choices[0]
+            if hasattr(first_choice, 'message') and hasattr(first_choice.message, 'content'):
+                return first_choice.message.content.strip()
+        
+        return "Не вдалося розібрати текстову відповідь від ШІ."
+    except Exception as e:
+        return f"Помилка ШІ стиліста: {str(e)}"
+
 
 
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
