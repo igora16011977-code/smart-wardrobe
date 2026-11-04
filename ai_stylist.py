@@ -61,7 +61,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
 
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list, *args, **kwargs) -> str:
-    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen з виведенням помилок."""
+    """Аналізує гардероб на наявність прогалин і видає шопінг-рекомендації через Qwen."""
     import database
     if not wardrobe_items:
         return "Твій гардероб повністю порожній. Щоб знайти прогалини, завантаж фото одягу!"
@@ -70,20 +70,40 @@ def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list, *
         clean_items = [str(item if isinstance(item, (tuple, list)) else item) for item in wardrobe_items]
         items_text = "\n- ".join(clean_items)
         
-        db_products = database.get_all_shopping_items()
-        if not db_products:
-            return "У базі даних бота немає завантажених товарів для шопінгу (таблиця shopping_items порожня)!"
+        # Безпечно отримуємо товари з бази даних
+        try:
+            db_products = database.get_all_shopping_items()
+        except Exception:
+            db_products = []
             
         products_links_feed = ""
-        for prod in db_products:
-            name, price, url, category, gender = prod
-            products_links_feed += f"- [{name} ({price} грн)]({url} '{name.lower()}') [Категорія: {category}, Для кого: {gender}]\n"
         
+        # Якщо база товарів порожня або зламалася, створюємо базовий набір вручну, щоб бот не падав
+        if not db_products:
+            products_links_feed = (
+                "- [Базова біла футболка (450 грн)](https://rozetka.com.ua 'футболка') [Категорія: Верх]\n"
+                "- [Класичні чорні худі (1200 грн)](https://rozetka.com.ua 'худі') [Категорія: Верх]\n"
+                "- [Стильні джинси прямого крою (1500 грн)](https://rozetka.com.ua 'джинси') [Категорія: Низ]\n"
+                "- [Демісезонна куртка (2800 грн)](https://rozetka.com.ua 'куртка') [Категорія: Верхній одяг]\n"
+            )
+        else:
+            # Безпечно розбираємо колонки таблиці, скільки б їх не було
+            for prod in db_products:
+                if isinstance(prod, (tuple, list)) and len(prod) >= 3:
+                    name = str(prod[0])
+                    price = str(prod[1])
+                    url = str(prod[2])
+                    category = str(prod[3]) if len(prod) > 3 else "Одяг"
+                    gender = str(prod[4]) if len(prod) > 4 else "Унісекс"
+                    products_links_feed += f"- [{name} ({price} грн)]({url} '{name.lower()}') [Категорія: {category}, Для кого: {gender}]\n"
+                else:
+                    products_links_feed += f"- [Товар з бази]({str(prod[2] if len(prod)>2 else 'https://rozetka.com.ua')})\n"
+
         prompt = (
             f"Ти професійний стиліст і ревізор гардеробу.\n"
-            f"Поточна погода: {weather_info['temp']}°C, {weather_info['description']}.\n\n"
+            f"Поточна погода: {weather_info.get('temp', 15)}°C, {weather_info.get('description', 'мінлива хмарність')}.\n\n"
             f"НАЯВНИЙ ГАРДЕРОБ КОРИСТУВАЧА:\n- {items_text}\n\n"
-            f"Запропонуй користувачу докупити РІВНО 2 речі з бази:\n"
+            f"Запропонуй користувачу докупити РІВНО 2 речі з цього списку:\n"
             f"{products_links_feed}\n"
             f"Шаблон відповіді:\n"
             f"🔎 **Аналіз гардеробу:** ...\n"
@@ -107,8 +127,8 @@ def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list, *
                 return first_choice.message.content.strip()
         return "Не вдалося розібрати рекомендації для шопінгу."
     except Exception as e:
-        # Виводимо точну причину поломки в чат Телеграм
         return f"Помилка аналізу шопінгу: {str(e)}"
+
 
 
 
