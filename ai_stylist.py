@@ -125,19 +125,21 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
     """
     Лаконічний генератор капсули для подорожей через OpenAI. 
-    Формат строго: колір + річ + для чого це, без перекручувань та брендів.
     """
-    city = "Києва" if not event or "подорож" in str(event).lower() else str(event).strip()
+    # ВИПРАВЛЕНО: Тепер місто береться безпосередньо з введених даних користувача (змінна event)
+    city = event.strip() if event else "обраного міста"
     days = days_count if days_count else 2
 
     temp = forecast_data.get('temp', forecast_data.get('temperature', 12))
     condition = forecast_data.get('description', forecast_data.get('condition', 'хмарно з проясненнями'))
 
+    # Формуємо правильний початок повідомлення
     intro_header = (
-        f"Вітаю! Прогноз погоди для {city}: {temp}°C, {condition}.\n"
+        f"Вітаю! Прогноз погоди для м. {city}: {temp}°C, {condition}.\n"
         f"Ось твоя компактна валіза на {days} днів, зібрана суворо з твоїх речей:\n\n"
         f"🎒 КАПСУЛЬНА ВАЛІЗА:\n\n"
     )
+
 
     clean_items = []
     for item in wardrobe_items:
