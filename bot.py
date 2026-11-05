@@ -420,7 +420,8 @@ async def process_event_and_get_outfit(message, state: FSMContext):
                 if isinstance(item, (tuple, list)) and len(item) >= 3:
                     db_file_id = item[0]
                     db_desc = item[1]
-                    db_item_id = item[2]
+                    db_item_id = item[2] # Перевірте, чи правильно зчитується ID
+
                     
                     if db_item_id == item_id:
                         if not photo_sent:

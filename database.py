@@ -121,14 +121,16 @@ def add_clothing(user_id: int, file_id: str, description: str, category: str = "
     conn.close()
 
 def get_user_wardrobe(user_id: int):
-    """Повертає список речей у форматі кортежів (file_id, description, id)."""
+    """Повертає список речей у форматі кортежів (file_id, description, id, category)."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT file_id, description, id FROM clothes WHERE user_id = %s', (user_id,))
+    # ДОДАНО стовбець category у вибірку
+    cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s', (user_id,))
     items = cursor.fetchall()
     cursor.close()
     conn.close()
     return items
+
 
 def delete_clothing(user_id: int, clothing_id: int) -> bool:
     """Видаляє річ з гардероба користувача за її ID."""
