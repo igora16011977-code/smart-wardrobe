@@ -353,34 +353,83 @@ async def process_event_and_get_outfit(message, state: FSMContext):
     
     user_id = message.from_user.id
     
-    # ДИНАМІКА: Замість зашитого Львова беремо місто цього юзера з бази даних!
-    user_city = database.get_user_city(user_id)
+    # 1. Безпечно дістаємо місто
+    try:
+        user_city = database.get_user_city(user_id) or "Lviv"
+    except Exception:
+        user_city = "Lviv"
+        
+    # 2. Безпечно отримуємо погоду
+    try:
+        weather_data = weather.get_weather(city=user_city)
+    except Exception:
+        weather_data = {"temp": 15, "feels_like": 14, "description": "мінлива хмарність", "city": user_city}
     
-    # Передаємо реальне місто користувача у функцію погоди
-    weather_data = weather.get_weather(city=user_city)
-    
-    raw_items = database.get_user_wardrobe(user_id)
-    
-    clean_items_for_ai = []
-    for item in raw_items:
-        desc = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)
-        clean_items_for_ai.append(desc)
+    # 3. Безпечно дістаємо речі з бази даних
+    try:
+        raw_items = database.get_user_wardrobe(user_id)
+    except Exception as e:
+        await message.answer(f"❌ Помилка доступу до бази даних гардеробу: {str(e)}")
+        return
 
-    recommendation = ai_stylist.generate_outfit_recommendation(weather_data, clean_items_for_ai, event)
+    if not raw_items:
+        await message.answer("Твій гардероб порожній! Спочатку завантаж фото одягу.")
+        return
+
+    # 4. Викликаємо ШІ-стиліста з повним перехопленням помилок
+    try:
+        full_recommendation = ai_stylist.generate_outfit_recommendation(weather_data, raw_items, event)
+    except Exception as e:
+        await message.answer(f"❌ Помилка модуля ШІ стиліста: {str(e)}")
+        return
+
+    # Розбираємо технічну відповідь від Qwen
+    clean_recommendation = full_recommendation
+    chosen_ids = []
     
-    # Виводимо у звіт правильне назву міста, яке повернув нам API
+    if "ОДЯГНИ:" in full_recommendation:
+        try:
+            parts = full_recommendation.split("ОДЯГНИ:")
+            clean_recommendation = parts[0].strip()
+            raw_ids = parts[1].strip()
+            if "немає" not in raw_ids.lower():
+                chosen_ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip().isdigit()]
+        except Exception:
+            clean_recommendation = full_recommendation
+
+    # 5. Формуємо та надсилаємо звіт про погоду і вибір ШІ
     weather_report = (
         f"📍 <b>Погода у місті {weather_data.get('city', user_city)}:</b>\n"
-        f"🌡️  Температура: {weather_data['temp']}°C\n"
-        f"🧣 Відчувається як: {weather_data['feels_like']}°C\n"
-        f"💨 Вітер: {weather_data.get('wind_speed', 4.5)} м/с\n"
-        f"💧 Вологість: {weather_data.get('humidity', 75)}%\n"
-        f"☀️ УФ-індекс (UV): {weather_data.get('uvi', 2)}\n"
-        f"☁️ Стан: {weather_data['description']}\n\n"
-        f"💡 <b>Рекомендація стиліста ({event}):</b>\n{recommendation}"
+        f"🌡️  Температура: {weather_data.get('temp', 15)}°C (відчувається як {weather_data.get('feels_like', 14)}°C)\n"
+        f"☁️ Стан: {weather_data.get('description', 'мінлива хмарність')}\n\n"
+        f"💡 <b>Рекомендація стиліста ({event}):</b>\n{clean_recommendation}"
     )
     
-    await message.answer(weather_report, parse_mode="HTML")
+    try:
+        await message.answer(weather_report, parse_mode="HTML")
+    except Exception:
+        # Резервний вивід без HTML-тегів, якщо ШІ згенерував поламані теги
+        await message.answer(weather_report.replace("<b>", "").replace("</b>", ""))
+    
+    # 6. НАЙБІЛЬШ БЕЗПЕЧНИЙ ПОШУК ТА НАДСИЛАННЯ ФОТО
+    if chosen_ids:
+        photo_sent = False
+        for item_id in chosen_ids:
+            for item in raw_items:
+                # Перевіряємо структуру елемента бази, щоб уникнути IndexError
+                if isinstance(item, (tuple, list)) and len(item) >= 3:
+                    db_file_id = item[0]
+                    db_desc = item[1]
+                    db_item_id = item[2]
+                    
+                    if db_item_id == item_id:
+                        if not photo_sent:
+                            await message.answer("👟 <b>Ось фото речей, які я підібрав для вашого образу:</b>", parse_mode="HTML")
+                            photo_sent = True
+                        try:
+                            await bot.send_photo(chat_id=user_id, photo=db_file_id, caption=f"✨ {db_desc}")
+                        except Exception:
+                            pass  # Ігноруємо поламані або застарілі ID файлів у Telegram
 
 
 
@@ -432,42 +481,31 @@ async def check_wardrobe_gaps(message):
     user_id = message.from_user.id
     
     try:
+        # Отримуємо сирі кортежі з бази даних без попереднього каліченого очищення рядків
         raw_items = database.get_user_wardrobe(user_id)
     except Exception as e:
         await message.answer(f"❌ Помилка доступу до бази даних: {str(e)}")
         return
 
     if not raw_items:
-        await message.answer("Твій гардероб порожній! Завантаж фото одягу, щоб я міг знайти прогалини.")
+        await message.answer("Твій гардероб порожній! Завантаж фото одягу за допомогою звичайного надсилання фото, щоб я міг знайти прогалини.")
         return
 
     await message.answer("🔄 Проводжу ревізію вашої шафи, аналізую клімат та шукаю прогалини в асортименті...")
 
-    # Безпечно визначаємо місто користувача та погоду
+    # Безпечно визначаємо місто та погоду
     try:
-        user_city = database.get_user_city(user_id) or "Київ"
+        user_city = database.get_user_city(user_id) or "Lviv"
         weather_data = weather.get_weather(city=user_city)
     except Exception:
         weather_data = {"temp": 15, "description": "мінлива хмарність"}
 
-    # ЗАХИЩЕНА ПІДГОТОВКА РЕЧЕЙ (Виправляє IndexError / KeyError)
-    clean_items_for_ai = []
-    for item in raw_items:
-        if isinstance(item, (tuple, list)):
-            # Перевіряємо всі можливі елементи кортежу, щоб знайти текст
-            text_elements = [str(x) for x in item if x and isinstance(x, str) and len(x) > 2]
-            desc = text_elements[0] if text_elements else str(item[0] if len(item) > 0 else item)
-        else:
-            desc = str(item)
-        if desc:
-            clean_items_for_ai.append(desc)
-
-    # Делегуємо роботу ШІ-стилісту з перехопленням будь-яких внутрішніх помилок
+    # Викликаємо оновлений, стійкий до помилок ШІ-модуль
     try:
-        shopping_list = ai_stylist.generate_shopping_recommendation(weather_data, clean_items_for_ai)
+        shopping_list = ai_stylist.generate_shopping_recommendation(weather_data, raw_items)
         await message.answer(shopping_list, parse_mode="Markdown")
     except Exception as e:
-        await message.answer(f"❌ Помилка ШІ стиліста при аналізі: {str(e)}")
+        await message.answer(f"❌ Критична помилка стиліста: {str(e)}")
 
 
 @dp.message_handler(content_types=['photo'], state="*")
