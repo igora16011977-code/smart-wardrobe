@@ -135,7 +135,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
 
 def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
-    """Лаконічний генератор капсули для подорожей із розбивкою по днях та шарах."""
+    """ОНОВЛЕНО: Лаконічний динамічний генератор капсули для подорожей із розбивкою строго за вказаною кількістю днів."""
     city = event.strip() if event else "обраного міста"
     days = days_count if days_count else 2
 
@@ -166,15 +166,14 @@ def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: st
     items_text = "\n- ".join(clean_items)
 
     prompt = (
-        f"Ти — професійний ШІ-стиліст додатка 'Шо одіти?'. Твоє завдання — зібрати капсулу та образи для поїздки в місто {city} на {days} днів.\n"
+        f"Ти — професійний ШІ-стиліст додатка 'Шо одіти?'. Твоє завдання — зібрати капсулу та образи для поїздки в місто {city} строго на {days} днів.\n"
         f"Температура: {temp}°C, стан погоди: {condition}.\n\n"
         f"СПИСОК НАЯВНИХ РЕЧЕЙ КОРИСТУВАЧА:\n- {items_text}\n\n"
-        f"Напиши відповідь строго українською мовою за цим шаблоном. Склади повноцінні багатошарові образи (базовий верх + проміжний верх/худі + куртка якщо холодно):\n\n"
+        f"Напиши відповідь строго українською мовою за цим шаблоном. Обов'язково розпиши СТРОГО {days} днів (ні більше, ні менше):\n\n"
         f"👕 **Рекомендовані речі у валізу:**\n"
         f"- [Колір + назва речі з бази] — [коротка роль у поїздці]\n\n"
         f"📅 **Варіанти поєднань по днях:**\n"
-        f"**День 1:** [Повний набір одягу на цей день: що з чим поєднати з верхнього одягу, верху та низу]\n"
-        f"**День 2:** [Повний комплект одягу на зміну або інше поєднання шарів]\n\n"
+        f"Склади повноцінний комплект на КУЖЕН день окремо (з 1-го по {days}-й день). Формат: **День X:** [опис повноцінного багатошарового образу на цей день]\n\n"
         f"💡 **Порада стиліста щодо терморегуляції:** [1-2 речення, як правильно чергувати шари одягу при {temp}°C]"
     )
 
@@ -185,14 +184,23 @@ def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: st
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.4,
-                max_tokens=650
+                max_tokens=750 # Збільшуємо ліміт токенів, щоб помістилися всі 4-5 днів
             )
             if response and response.choices and len(response.choices) > 0:
                 return f"{intro_header}{response.choices[0].message.content.strip()}"
         except Exception as e:
             print(f"Помилка OpenAI у подорожах: {e}")
 
-    return f"{intro_header}👕 **Рекомендовані речі у валізу:**\n- Речі базового гардероба.\n\n💡 Порада: Чергуйте шари одягу."
+    # Динамічний бекап, якщо API недоступне
+    backup_lines = [f"**День {i}:** Реальний комплект одягу на зміну з вашої валізи." for i in range(1, days + 1)]
+    backup_days_text = "\n".join(backup_lines)
+    
+    return (
+        f"{intro_header}👕 **Рекомендовані речі у валізу:**\n- Речі базового гардероба.\n\n"
+        f"📅 **Варіанти поєднань по днях:**\n{backup_days_text}\n\n"
+        f"💡 Порада: Чергуйте шари одягу."
+    )
+
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
     """Аналізує гардероб на наявність прогалин."""
