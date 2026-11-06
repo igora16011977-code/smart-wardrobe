@@ -29,15 +29,21 @@ import http.server
 import socketserver
 import os
 
+# Замініть вашу функцію run_dummy_server або код Dummy-сервера на цей:
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+
 def run_dummy_server():
-    # Render автоматично передає порт у змінну оточення PORT
-    port = int(os.environ.get("PORT", 8080))
-    handler = http.server.SimpleHTTPRequestHandler
-    # Дозволяємо повторне використання порту
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", port), handler) as httpd:
-        print(f"🌍 Dummy server started on port {port}")
-        httpd.serve_forever()
+    port = int(os.environ.get("PORT", 10000))
+    # Сервер автоматично шукатиме файл index.html у папці з ботом і показуватиме його
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    print(f"🌍 Повноцінний Web App сервер запущено на порту {port}")
+    httpd.serve_forever()
+
+# Переконайтеся, що в коді викликається:
+# threading.Thread(target=run_dummy_server, daemon=True).start()
+
 
 # Запускаємо сервер у фоновому потоці, щоб він не заважав роботу Telegram-бота
 threading.Thread(target=run_dummy_server, daemon=True).start()
@@ -579,18 +585,19 @@ async def process_webapp_style_change(message: types.Message):
         )
 @dp.message_handler(commands=['start'], state="*")
 async def send_welcome(message: types.Message):
-    # Примусове встановлення кнопки в обхід усього кешу планети
     from aiogram.types import MenuButtonWebApp, WebAppInfo
+    
+    # Замініть це посилання на адресу вашого сервісу з Render!
+    render_url = "https://onrender.com"
+    
     await bot.set_chat_menu_button(
         chat_id=message.chat.id,
         menu_button=MenuButtonWebApp(
             text="👗 Шафа",
-            web_app=WebAppInfo(url="https://github.io")
+            web_app=WebAppInfo(url=render_url)
         )
     )
-    
-    # Далі йде ваш старий код команди /start без змін...
-    await message.answer("Привіт! Я твій ШІ-стиліст...", reply_markup=main_keyboard)
+    await message.answer("Привіт! Меню оновлено.", reply_markup=main_keyboard)
 
 
 async def run_bot():
