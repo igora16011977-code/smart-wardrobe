@@ -510,7 +510,7 @@ async def process_trip_days(message, state: FSMContext):
         desc = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)
         clean_items_for_ai.append(desc)
 
-           try:
+    try:
         trip_plan = ai_stylist.generate_trip_itinerary(
             forecast_data, 
             clean_items_for_ai, 
@@ -519,6 +519,7 @@ async def process_trip_days(message, state: FSMContext):
         await message.answer(trip_plan, parse_mode="Markdown")
     except Exception as e:
         await message.answer(f"❌ Помилка під час генерації плану подорожі: {str(e)}", reply_markup=main_keyboard)
+
 
 @dp.message_handler(Text(equals="🛍️ Чого не вистачає?"), state="*")
 async def check_wardrobe_gaps(message):
