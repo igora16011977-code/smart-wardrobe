@@ -123,70 +123,142 @@ async def show_wardrobe_menu(message):
     await message.answer("📁 Оберіть формат перегляду гардероба:", reply_markup=category_kb)
 
 def _filter_items_by_category(raw_items, category_target):
+    """Повернення до старої логіки: фільтрація речей за ключовими словами в описі."""
     if category_target == "все":
         return raw_items
+        
     filtered = []
     for item in raw_items:
-        desc_lower = (item if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)).lower()
-        if category_target == "верх" and any(w in desc_lower for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр"]):
-            filtered.append(item)
-        elif category_target == "низ" and any(w in desc_lower for w in ["джинси", "штани", "bрюки", "карго", "джоггери"]):
-            filtered.append(item)
+        desc_lower = (item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)).lower()
+        
+        if category_target == "верх":
+            if any(w in desc_lower for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр", "топ", "майка", "бодік", "костюмчик"]):
+                filtered.append(item)
+        elif category_target == "низ":
+            if any(w in desc_lower for w in ["джинси", "штани", "брюки", "карго", "джоггери", "шорти", "спідниця"]):
+                filtered.append(item)
+        elif category_target == "взуття":
+            if any(w in desc_lower for w in ["кросівки", "взуття", "кеди", "черевики", "чоботи"]):
+                filtered.append(item)
+        elif category_target == "аксесуари":
+            if any(w in desc_lower for w in ["ланцюжок", "кулон", "підвіска", "кільце", "перстень", "браслет", "намисто", "парасоля", "годинник", "прикрас"]):
+                filtered.append(item)
+                
     return filtered
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith('filter_category_') or (c.data.startswith('page_') and c.data != 'page_back_to_menu'), state="*")
 async def process_wardrobe_navigation(callback_query: CallbackQuery):
+    """Повне відновлення старої пагінації з кнопками керування речами."""
     data_parts = callback_query.data.split('_')
     user_id = callback_query.from_user.id
     raw_items = database.get_user_wardrobe(user_id)
     
+    # 1. ОБРОБКА ВИБОРУ КАТЕГОРІЇ (Наприклад: filter_category_верх)
     if data_parts[0] == "filter":
         category_target = data_parts[2]
         items = _filter_items_by_category(raw_items, category_target)
+        
         if not items:
-            await bot.answer_callback_query(callback_query.id, text="У цій категорії поки немає речей.")
+            await bot.answer_callback_query(callback_query.id, text=f"У категорії '{category_target.upper()}' поки немає речей.")
             return
+            
         current_index = 0
         is_first_open = True
+    
+    # 2. ОБРОБКА ГОРТАННЯ КНОПКАМИ НАЗАД / ВПЕРЕД
     else:
         action = data_parts[1]
+        if action == "noop":
+            await bot.answer_callback_query(callback_query.id)
+            return
+            
         category_target = data_parts[2]
         current_index = int(data_parts[3])
         items = _filter_items_by_category(raw_items, category_target)
         is_first_open = False
+        
+        if not items:
+            await bot.answer_callback_query(callback_query.id, text="Категорія тепер порожня.")
+            await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+            return
+            
         if action == "next":
             current_index = 0 if current_index + 1 >= len(items) else current_index + 1
         elif action == "prev":
             current_index = len(items) - 1 if current_index - 1 < 0 else current_index - 1
 
-    if not items:
-        await bot.answer_callback_query(callback_query.id, text="Категорія порожня.")
-        return
-
+    # Витягуємо дані поточної речі
     item = items[current_index]
     file_id = item[0] if isinstance(item, (tuple, list)) else item
     desc = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else "Одяг"
+    item_id = item[2] if isinstance(item, (tuple, list)) and len(item) > 2 else None
 
+    # Створення старої клавіатури з кнопками дій
     inline_kb = InlineKeyboardMarkup(row_width=2)
+    if item_id is not None:
+        inline_kb.add(
+            InlineKeyboardButton("✏️ Змінити назву", callback_data=f"edit_{item_id}"),
+            InlineKeyboardButton("🗑️ Видалити", callback_data=f"delete_{item_id}")
+        )
     inline_kb.row(
         InlineKeyboardButton("⬅️ Назад", callback_data=f"page_prev_{category_target}_{current_index}"),
         InlineKeyboardButton(f"{current_index + 1} / {len(items)}", callback_data="page_noop"),
         InlineKeyboardButton("Вперед ➡️", callback_data=f"page_next_{category_target}_{current_index}")
     )
-    
+    inline_kb.row(InlineKeyboardButton("📁 Назад до категорій", callback_data="page_back_to_menu"))
+
     if is_first_open:
         try:
             await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-            await bot.send_photo(chat_id=user_id, photo=file_id, caption=f"✨ {desc}", reply_markup=inline_kb)
-        except Exception:
-            await bot.send_message(chat_id=user_id, text=f"✨ {desc}", reply_markup=inline_kb)
-    else:
-        from aiogram.types import InputMediaPhoto
-        try:
-            await bot.edit_message_media(media=InputMediaPhoto(media=file_id, caption=f"✨ {desc}"), chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id, reply_markup=inline_kb)
         except Exception:
             pass
+        try:
+            await bot.send_photo(chat_id=user_id, photo=file_id, caption=f"✨ {desc}", reply_markup=inline_kb)
+        except Exception:
+            await bot.send_message(chat_id=user_id, text=f"✨ {desc} (не вдалося завантажити фото)", reply_markup=inline_kb)
+    else:
+        try:
+            from aiogram.types import InputMediaPhoto
+            await bot.edit_message_media(
+                media=InputMediaPhoto(media=file_id, caption=f"✨ {desc}"),
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                reply_markup=inline_kb
+            )
+        except Exception:
+            try:
+                await bot.edit_message_caption(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    caption=f"✨ {desc}",
+                    reply_markup=inline_kb
+                )
+            except Exception:
+                pass
+            
+    await bot.answer_callback_query(callback_query.id)
+
+
+@dp.callback_query_handler(lambda c: c.data == 'page_back_to_menu', state="*")
+async def back_to_categories_menu(callback_query: CallbackQuery):
+    """Повернення до початкового вибору категорій гардероба."""
+    category_kb = InlineKeyboardMarkup(row_width=2)
+    category_kb.add(
+        InlineKeyboardButton("👕 Верх", callback_data="filter_category_верх"),
+        InlineKeyboardButton("👖 Низ", callback_data="filter_category_низ"),
+        InlineKeyboardButton("👟 Взуття", callback_data="filter_category_взуття"),
+        InlineKeyboardButton("📿 Аксесуари", callback_data="filter_category_аксесуари")
+    )
+    category_kb.row(InlineKeyboardButton("📦 Весь гардероб", callback_data="filter_category_все"))
+    
+    try:
+        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+    except Exception:
+        pass
+    await bot.send_message(chat_id=callback_query.from_user.id, text="📁 Обери категорію гардероба для перегляду:", reply_markup=category_kb)
     await callback_query.answer()
+
 
 @dp.message_handler(Text(equals="🌤️ Що вдягнути сьогодні?"), state="*")
 async def ask_for_event(message, state: FSMContext):
