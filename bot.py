@@ -128,19 +128,34 @@ async def cmd_start(message):
         reply_markup=main_keyboard
     )
 
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+
 @dp.message_handler(Text(equals="👗 Мій гардероб"), state="*")
 async def show_wardrobe_menu(message):
-    # Створюємо Inline-меню для вибору категорії
-    category_kb = InlineKeyboardMarkup(row_width=2)
+    # Отримуємо ID користувача та його поточний стиль із бази даних
+    user_id = message.from_user.id
+    current_style = database.get_user_style(user_id)
+    
+    # Створюємо Inline-клавіатуру
+    category_kb = InlineKeyboardMarkup(row_width=1)
+    
+    # КНОПКА WEB APP: Вона відкриває повноцінне вікно всередині Telegram
+    # Передаємо user_id та стиль як параметри, щоб сайт знав, чий гардероб відкривати
+    web_app_url = f"https://github.io{user_id}&style={current_style}"
+    
     category_kb.add(
+        InlineKeyboardButton("✨ Відкрити візуальну шафу (Web App)", web_app_info=WebAppInfo(url=web_app_url))
+    )
+    
+    # Залишаємо ваші старі кнопки нижче, як альтернативу
+    category_kb.row(
         InlineKeyboardButton("👕 Верх", callback_data="filter_category_верх"),
-        InlineKeyboardButton("👖 Низ", callback_data="filter_category_низ"),
-        InlineKeyboardButton("👟 Взуття", callback_data="filter_category_взуття"),
-        InlineKeyboardButton("📿 Аксесуари", callback_data="filter_category_аксесуари")
+        InlineKeyboardButton("👖 Низ", callback_data="filter_category_низ")
     )
     category_kb.row(InlineKeyboardButton("📦 Весь гардероб", callback_data="filter_category_все"))
     
-    await message.answer("📁 Обери категорію гардероба для перегляду:", reply_markup=category_kb)
+    await message.answer("📁 Оберіть формат перегляду гардероба:", reply_markup=category_kb)
+
 
 
 
