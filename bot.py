@@ -61,8 +61,6 @@ main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 web_app_link = "https://github.io"
 
 
-
-
 main_keyboard.row(
     KeyboardButton("🌤️ Що вдягнути сьогодні?"), 
     KeyboardButton("👗 Візуальна шафа", web_app=WebAppInfo(url=web_app_link))
@@ -579,6 +577,20 @@ async def process_webapp_style_change(message: types.Message):
             f"вона завантажиться у вашому унікальному дизайні!",
             parse_mode="HTML"
         )
+@dp.message_handler(commands=['start'], state="*")
+async def send_welcome(message: types.Message):
+    # Примусове встановлення кнопки в обхід усього кешу планети
+    from aiogram.types import MenuButtonWebApp, WebAppInfo
+    await bot.set_chat_menu_button(
+        chat_id=message.chat.id,
+        menu_button=MenuButtonWebApp(
+            text="👗 Шафа",
+            web_app=WebAppInfo(url="https://github.io")
+        )
+    )
+    
+    # Далі йде ваш старий код команди /start без змін...
+    await message.answer("Привіт! Я твій ШІ-стиліст...", reply_markup=main_keyboard)
 
 
 async def run_bot():
