@@ -510,7 +510,7 @@ async def process_trip_days(message, state: FSMContext):
         desc = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else str(item)
         clean_items_for_ai.append(desc)
 
-        try:
+           try:
         trip_plan = ai_stylist.generate_trip_itinerary(
             forecast_data, 
             clean_items_for_ai, 
