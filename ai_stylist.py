@@ -28,7 +28,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 3:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
             clean_items.append(f"ID {item[2]}: {item[1]}")
         else:
             clean_items.append(str(item))
@@ -49,7 +49,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
-                max_completion_tokens=450  # Виправлено параметр для нових моделей OpenAI
+                max_completion_tokens=450
             )
             return f"{weather_header}{response.choices[0].message.content.strip()}"
         except Exception as e:
@@ -58,7 +58,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     return f"{weather_header}👕 Базовий верх: Футболка\n👖 Низ: Джинси\n✨ Локальний підбір на {temp}°C."
 
 def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
-    wardrobe_text = "".join([f"- ID: {item[0]}, Опис: {item[1]}\n" for item in wardrobe_items if isinstance(item, (tuple, list))])
+    wardrobe_text = "".join([f"- ID: {item[2]}, Опис: {item[1]}\n" for item in wardrobe_items if isinstance(item, (tuple, list))])
     client_openai = get_openai_client()
     if not client_openai:
         return "❌ Помилка: Клієнт OpenAI не ініціалізований."
@@ -67,7 +67,7 @@ def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
         response = client_openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Ти — професійний ШІ-стиліст. Склади валізу з вказаних речей."},
+                {"role": "system", "content": "Ти — profesiynyy ШІ-стиліст. Склади валізу з вказаних речей."},
                 {"role": "user", "content": f"Погода: {weather_data}\nГардероб:\n{wardrobe_text}"}
             ],
             max_completion_tokens=750,
@@ -84,3 +84,4 @@ def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -
         f"1. [Стильні джинси прямого крою (1500 грн)](https://rozetka.com.ua)\n"
         f"2. [Класичне чорне худі (1200 грн)](https://rozetka.com.ua)"
     )
+

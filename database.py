@@ -98,3 +98,4 @@ def save_user_city(user_id: int, city: str):
     conn.commit()
     cursor.close()
     conn.close()
+

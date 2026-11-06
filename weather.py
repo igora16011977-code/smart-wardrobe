@@ -4,7 +4,6 @@ import config
 def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
-    # Виправлено URL на правильний API ендпоінт
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -50,3 +49,4 @@ def get_weather_forecast(city: str) -> dict:
         "description": "сонячно" if default_temp == 25 else "хмарно з проясненнями",
         "city": city
     }
+
