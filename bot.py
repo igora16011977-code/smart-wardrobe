@@ -550,6 +550,33 @@ async def handle_clothing_photo(message):
     except Exception as e:
         await message.answer(f"❌ Помилка: {str(e)}")
 
+# ХЕНДЛЕР ДЛЯ ОБРОБКИ ДАНИХ З WEB APP
+@dp.message_handler(content_types=types.ContentType.WEB_APP_DATA, state="*")
+async def process_webapp_style_change(message: types.Message):
+    # Отримуємо дані, які надіслав наш JS-скрипт із файлу index.html
+    webapp_data = message.web_app_data.data
+    user_id = message.from_user.id
+    
+    # Перевіряємо, чи це команда на зміну стилю інтерфейсу
+    if webapp_data.startswith("set_style_"):
+        # Витягуємо чисту назву стилю (наприклад: 'neon', 'pastel' або 'default')
+        chosen_style = webapp_data.replace("set_style_", "")
+        
+        # Зберігаємо обраний стиль користувача в нашу базу даних PostgreSQL
+        database.save_user_style(user_id, chosen_style)
+        
+        # Створюємо красиву відповідь залежно від обраної теми
+        style_emojis = {"default": "✨ Стандартний", "neon": "🌌 Неоновий", "pastel": "🌸 Пастельний"}
+        friendly_style_name = style_emojis.get(chosen_style, chosen_style)
+        
+        await message.answer(
+            f"🎨 <b>Стиль інтерфейсу успішно змінено!</b>\n"
+            f"Тепер ваш персональний стиль: <b>{friendly_style_name}</b>.\n\n"
+            f"Налаштування збережено у хмарі. При наступному відкритті візуальної шафи "
+            f"вона завантажиться у вашому унікальному дизайні!",
+            parse_mode="HTML"
+        )
+
 
 async def run_bot():
     database.init_db()
