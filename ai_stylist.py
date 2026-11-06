@@ -134,72 +134,47 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
 
 
-def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: str, days_count: int) -> str:
-    """ОНОВЛЕНО: Лаконічний динамічний генератор капсули для подорожей із розбивкою строго за вказаною кількістю днів."""
-    city = event.strip() if event else "обраного міста"
-    days = days_count if days_count else 2
-
-    temp = forecast_data.get('temp', forecast_data.get('temperature', 12))
-    condition = forecast_data.get('description', forecast_data.get('condition', 'хмарно з проясненнями'))
-
-    intro_header = (
-        f"Вітаю! Прогноз погоди для м. {city}: {temp}°C, {condition}.\n"
-        f"Ось твій збалансований гардероб на {days} дні(в), зібраний з твоїх речей:\n\n"
-        f"🎒 КАПСУЛЬНА ВАЛІЗА:\n\n"
-    )
-
-    clean_items = []
+def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
+    # Перетворюємо речі гардероба на зрозумілий для ШІ текст
+    wardrobe_text = ""
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)):
-            text_fields = [str(x).strip() for x in item if isinstance(x, str) and len(str(x).strip()) > 5]
-            if text_fields:
-                clean_items.append(text_fields[0])
-            else:
-                clean_items.append(str(item[-1]).strip())
+        # Припускаємо структуру (id, file_id, description, category)
+        if len(item) >= 4:
+            wardrobe_text += f"- ID: {item[0]}, Опис: {item[2]}, Категорія: {item[3]}\n"
         else:
-            clean_items.append(str(item).strip())
+            wardrobe_text += f"- Речі: {item}\n"
 
-    clean_items = [x for x in clean_items if not x.isdigit() and len(x) > 3]
-    if not clean_items:
-        clean_items = ["Біле худі з написом 'GODDESS'", "Світло-сірі джинси", "Чорна куртка-пуффер", "Білі кросівки"]
-
-    items_text = "\n- ".join(clean_items)
-
-    prompt = (
-        f"Ти — професійний ШІ-стиліст додатка 'Шо одіти?'. Твоє завдання — зібрати капсулу та образи для поїздки в місто {city} строго на {days} днів.\n"
-        f"Температура: {temp}°C, стан погоди: {condition}.\n\n"
-        f"СПИСОК НАЯВНИХ РЕЧЕЙ КОРИСТУВАЧА:\n- {items_text}\n\n"
-        f"Напиши відповідь строго українською мовою за цим шаблоном. Обов'язково розпиши СТРОГО {days} днів (ні більше, ні менше):\n\n"
-        f"👕 **Рекомендовані речі у валізу:**\n"
-        f"- [Колір + назва речі з бази] — [коротка роль у поїздці]\n\n"
-        f"📅 **Варіанти поєднань по днях:**\n"
-        f"Склади повноцінний комплект на КУЖЕН день окремо (з 1-го по {days}-й день). Формат: **День X:** [опис повноцінного багатошарового образу на цей день]\n\n"
-        f"💡 **Порада стиліста щодо терморегуляції:** [1-2 речення, як правильно чергувати шари одягу при {temp}°C]"
-    )
-
-    client_openai = get_openai_client()
-    if client_openai:
-        try:
-            response = client_openai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=750 # Збільшуємо ліміт токенів, щоб помістилися всі 4-5 днів
+    # Формуємо суворий системний запит до OpenAI
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ти — професійний ШІ-стиліст. Твоє завдання — скласти РЕАЛЬНУ капсульну валізу для подорожі.\n"
+                "Обов'язково використовуй ТІЛЬКИ ті речі та їхні реальні описи, які користувач передав у списку гардероба нижче.\n\n"
+                "СТРОГО ЗАБОРОНЕНО писати фрази-заглушки на кшталт 'Реальний комплект одягу з вашої валізи'.\n"
+                "Замість цього ти повинен написати конкретний текст, наприклад: 'День 1: [Назва речі з гардероба] + [Інша річ]'.\n\n"
+                "Формат відповіді має бути чітким та лаконічним, українською мовою, з використанням емодзі."
             )
-            if response and response.choices and len(response.choices) > 0:
-                return f"{intro_header}{response.choices[0].message.content.strip()}"
-        except Exception as e:
-            print(f"Помилка OpenAI у подорожах: {e}")
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Погода в точці призначення: {weather_data}\n"
+                f"Деталі подорожі (дні, мета): {event_description}\n"
+                f"Доступний гардероб користувача:\n{wardrobe_text}"
+            )
+        }
+    ]
 
-    # Динамічний бекап, якщо API недоступне
-    backup_lines = [f"**День {i}:** Реальний комплект одягу на зміну з вашої валізи." for i in range(1, days + 1)]
-    backup_days_text = "\n".join(backup_lines)
-    
-    return (
-        f"{intro_header}👕 **Рекомендовані речі у валізу:**\n- Речі базового гардероба.\n\n"
-        f"📅 **Варіанти поєднань по днях:**\n{backup_days_text}\n\n"
-        f"💡 Порада: Чергуйте шари одягу."
+    # Виклик вашого клієнта OpenAI
+    response = client_openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        max_completion_tokens=750,
+        temperature=0.7
     )
+    
+    return response.choices[0].message.content
 
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
