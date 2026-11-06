@@ -178,4 +178,3 @@ def get_user_city(user_id: int) -> str:
     return row[0] if row else "Lviv"
 
 
-
