@@ -31,7 +31,15 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Таблиця для одягу користувачів
+    # 1. Примусово створюємо таблицю налаштувань користувача
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id BIGINT PRIMARY KEY,
+            city TEXT NOT NULL DEFAULT 'Lviv'
+        )
+    ''')
+    
+    # 2. Таблиця для одягу користувачів
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clothes (
             id SERIAL PRIMARY KEY,
@@ -40,14 +48,6 @@ def init_db():
             description TEXT NOT NULL,
             category TEXT DEFAULT 'Інше',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # 2. Таблиця для збереження міст
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_settings (
-            user_id BIGINT PRIMARY KEY,
-            city TEXT NOT NULL
         )
     ''')
     
@@ -68,7 +68,11 @@ def init_db():
     conn.close()
     
     # Наповнюємо базу дефолтними товарами
-    _populate_default_shopping_items()
+    try:
+        _populate_default_shopping_items()
+    except Exception as e:
+        print(f"Попередження при наповненні товарів: {e}")
+
 
 def _populate_default_shopping_items():
     """Наповнює таблицю базовими товарами Rozetka, якщо вона порожня."""
