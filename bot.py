@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher
+from aiogram import types
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
