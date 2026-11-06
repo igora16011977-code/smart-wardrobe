@@ -60,6 +60,9 @@ main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 # Офіційний сайт Telegram для тестування Web App
 web_app_link = "https://github.io"
 
+
+
+
 main_keyboard.row(
     KeyboardButton("🌤️ Що вдягнути сьогодні?"), 
     KeyboardButton("👗 Візуальна шафа", web_app=WebAppInfo(url=web_app_link))
