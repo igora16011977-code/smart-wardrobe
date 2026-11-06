@@ -2,7 +2,7 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.dispatcher.filters import Text
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -54,10 +54,24 @@ class UserSettingsStates(StatesGroup):
     waiting_for_city_settings = State()
 
 # ГОЛОВНА КЛАВІАТУРА 2Х3 (ОНОВЛЕНА)
+# ГОЛОВНА КЛАВІАТУРА 2Х3 (ОНОВЛЕНА З WEB APP)
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"), KeyboardButton("👗 Мій гардероб"))
-main_keyboard.row(KeyboardButton("🧳 Планування подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
-main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))  # Наша нова кнопка
+
+# Офіційний сайт Telegram для тестування Web App
+web_app_link = "https://github.io"
+
+main_keyboard.row(
+    KeyboardButton("🌤️ Що вдягнути сьогодні?"), 
+    KeyboardButton("👗 Візуальна шафа", web_app=WebAppInfo(url=web_app_link))
+)
+main_keyboard.row(
+    KeyboardButton("🧳 Планування подорожі"), 
+    KeyboardButton("🛍️ Чого не вистачає?")
+)
+main_keyboard.row(
+    KeyboardButton("⚙️ Змінити місто")
+)
+
 
 # НОВА СТРОКА: Створюємо event_keyboard, якої не вистачало!
 event_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
