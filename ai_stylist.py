@@ -138,11 +138,15 @@ def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
     # Перетворюємо речі гардероба на зрозумілий для ШІ текст
     wardrobe_text = ""
     for item in wardrobe_items:
-        # Припускаємо структуру (id, file_id, description, category)
         if len(item) >= 4:
             wardrobe_text += f"- ID: {item[0]}, Опис: {item[2]}, Категорія: {item[3]}\n"
         else:
             wardrobe_text += f"- Речі: {item}\n"
+
+    # 🟢 ОЦЕЙ РЯДОК ОБОВ'ЯЗКОВО ДОДАТИ:
+    client_openai = get_openai_client()
+    if not client_openai:
+        return "❌ Помилка: Клієнт OpenAI не ініціалізований у модулі подорожей."
 
     # Формуємо суворий системний запит до OpenAI
     messages = [
@@ -166,7 +170,7 @@ def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
         }
     ]
 
-    # Виклик вашого клієнта OpenAI
+    # Виклик вашого клієнта OpenAI (тепер client_openai точно існує)
     response = client_openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
@@ -175,6 +179,7 @@ def generate_trip_itinerary(weather_data, wardrobe_items, event_description):
     )
     
     return response.choices[0].message.content
+
 
 
 def generate_shopping_recommendation(weather_info: dict, wardrobe_items: list) -> str:
