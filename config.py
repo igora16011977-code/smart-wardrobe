@@ -1,18 +1,16 @@
-# Пряме налаштування конфігурації бота (без використання .env)
+import os
 from dotenv import load_dotenv
 
+# Завантажуємо локальний .env (потрібно тільки для тестів на комп'ютері)
 load_dotenv()
-import os
-TOKEN = os.getenv("BOT_TOKEN")
 
-TELEGRAM_TOKEN = "8980208249:AAHf20dOgrG-refz7CtBVoAV8kt6AdWL5Bk"
-import os
+# Бот тягнутиме ключі з системи (на Render — з розділу Environment Variables)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-WEATHER_API_KEY = "ec787296b70be02f50d617c141b62b61"
-ADMIN_ID = 1902059714
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
-
-# Автоматична перевірка конфігурації (Groq більше не перевіряємо)
-if not all([TELEGRAM_TOKEN, WEATHER_API_KEY, OPENAI_API_KEY, ADMIN_ID]):
-    print("⚠️ Попередження: Деякі ключі вписані невірно!")
+try:
+    ADMIN_ID = int(os.getenv("ADMIN_ID", "1902059714"))
+except ValueError:
+    ADMIN_ID = 1902059714
 
