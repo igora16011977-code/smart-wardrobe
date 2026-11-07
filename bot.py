@@ -324,10 +324,15 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
-    photo = message.photo[-1]
-    status = await message.reply("🔮 Приміряю річ на твою цифрову поличку... Зачекай хвилиночку! ✨")
     
-    # СЮДИ ВСТАВЛЯЄМО ЦЕЙ РЯДОК:
+    # ОПТИМІЗАЦІЯ 1: Беремо середню якість фото ([-2] замість [-1])
+    # Воно завантажиться миттєво, а Gemini розпізнає річ так само круто!
+    if len(message.photo) > 1:
+        photo = message.photo[-2]
+    else:
+        photo = message.photo[-1]
+        
+    status = await message.reply("🔮 Приміряю річ на твою цифрову поличку... Зачекай хвилиночку! ✨")
     await bot.send_chat_action(message.chat.id, types.ChatActions.TYPING)
     
     try:
@@ -335,9 +340,11 @@ async def handle_clothing_photo(message: types.Message):
         photo_file = await bot.get_file(photo.file_id)
         photo_buffer = BytesIO()
         
-        # Шлях до файлу в aiogram 2.x
         await bot.download_file(photo_file.file_path, photo_buffer)
         image_bytes = photo_buffer.getvalue()
+        
+        # ОПТИМІЗАЦІЯ 2: Звільняємо пам'ять одразу після отримання байтів
+        photo_buffer.close()
         
         # Запускаємо синхронний запит до Gemini в окремому потоці
         description = await asyncio.to_thread(ai_stylist.analyze_clothing_image, image_bytes)
@@ -352,6 +359,7 @@ async def handle_clothing_photo(message: types.Message):
     except Exception as e:
         logging.error(f"Помилка завантаження фото: {e}")
         await status.edit_text("❌ Ой, красуне, ШІ-подружка трохи втомилася і не змогла розібрати фото. Спробуй ще раз! 💕")
+
 
 
 
