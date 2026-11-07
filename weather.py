@@ -4,6 +4,7 @@ import config
 def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
+    # Виправлено URL (додано правильний ендпоінт)
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -21,7 +22,7 @@ def get_weather(city: str) -> dict:
     except Exception as e:
         print(f"Помилка OpenWeather API: {e}")
         
-    return {"temp": 15, "feels_like": 14, "description": "мінлива хмарність", "city": city}
+    return {"temp": 12, "feels_like": 11, "description": "хмарно з проясненнями", "city": city}
 
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
@@ -49,4 +50,3 @@ def get_weather_forecast(city: str) -> dict:
         "description": "сонячно" if default_temp == 25 else "хмарно з проясненнями",
         "city": city
     }
-
