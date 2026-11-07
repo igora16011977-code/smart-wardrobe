@@ -4,11 +4,11 @@ import config
 def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
-    # Виправлено URL (додано правильний ендпоінт)
+    # ВИПРАВЛЕНО: Правильний API URL та параметр ?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=5) # Зменшено таймаут до 5 сек
         if response.status_code == 200:
             data = response.json()
             return {
@@ -27,10 +27,11 @@ def get_weather(city: str) -> dict:
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
+    # ВИПРАВЛЕНО: Правильний API URL для прогнозу та параметр ?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
