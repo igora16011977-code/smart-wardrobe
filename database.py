@@ -6,8 +6,7 @@ DB_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
     if not DB_URL:
-        raise ValueError("❌ Критична помилка: Змінна DATABASE_URL порожня на Render!")
-    
+        raise ValueError("💖 Ой! Змінна DATABASE_URL порожня. Налаштуй базу даних на Render чи локально!")
     url = urlparse.urlparse(DB_URL)
     return psycopg2.connect(
         dbname=url.path[1:],
@@ -32,18 +31,8 @@ def init_db():
             user_id BIGINT NOT NULL,
             file_id TEXT NOT NULL,
             description TEXT NOT NULL,
-            category TEXT DEFAULT 'Інше',
+            category TEXT DEFAULT 'верх',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS shopping_items (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            price INTEGER NOT NULL,
-            url TEXT NOT NULL,
-            category TEXT NOT NULL,
-            gender TEXT DEFAULT 'Унісекс'
         )
     ''')
     conn.commit()
@@ -52,11 +41,15 @@ def init_db():
 
 def _detect_category(description: str) -> str:
     desc = description.lower()
-    if any(w in desc for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр", "топ"]): return "верх"
-    if any(w in desc for w in ["джинси", "штани", "брюки", "карго", "джоггери", "шорти", "спідниця"]): return "низ"
-    if any(w in desc for w in ["кросівки", "взуття", "кеди", "черевики"]): return "взуття"
-    if any(w in desc for w in ["ланцюжок", "кулон", "підвіска", "кільце", "перстень", "браслет", "намисто", "прикрас"]): return "аксесуари"
-    return "Інше"
+    if any(w in desc for w in ["худі", "футболка", "кофта", "олімпійка", "зіпка", "лонгслів", "светр", "топ", "куртка", "пуховик", "бомбер", "толстовка", "піджак", "жакет", "кардиган"]): 
+        return "верх"
+    if any(w in desc for w in ["джинси", "штани", "брюки", "карго", "джоггери", "шорти", "спідниця", "легінси", "лосини"]): 
+        return "низ"
+    if any(w in desc for w in ["кросівки", "взуття", "кеди", "черевики", "чоботи", "туфлі", "босоніжки", "уггі"]): 
+        return "взуття"
+    if any(w in desc for w in ["ланцюжок", "кулон", "підвіска", "кільце", "перстень", "браслет", "намисто", "прикрас", "аксесуар", "сумка", "капелюх", "шапка", "шарф", "окуляри"]): 
+        return "аксесуари"
+    return "верх"
 
 def add_clothing(user_id: int, file_id: str, description: str):
     conn = get_db_connection()
@@ -70,14 +63,34 @@ def add_clothing(user_id: int, file_id: str, description: str):
     cursor.close()
     conn.close()
 
-def get_user_wardrobe(user_id: int):
+def get_user_wardrobe(user_id: int, category: str = "все"):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s', (user_id,))
+    if category == "все":
+        cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s ORDER BY id', (user_id,))
+    else:
+        cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s AND category = %s ORDER BY id', (user_id, category.lower()))
     items = cursor.fetchall()
     cursor.close()
     conn.close()
     return items
+
+def delete_clothing(item_id: int, user_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM clothes WHERE id = %s AND user_id = %s', (item_id, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_clothing_description(item_id: int, user_id: int, new_desc: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    new_category = _detect_category(new_desc)
+    cursor.execute('UPDATE clothes SET description = %s, category = %s WHERE id = %s AND user_id = %s', (new_desc, new_category, item_id, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def get_user_city(user_id: int) -> str:
     conn = get_db_connection()
@@ -98,4 +111,3 @@ def save_user_city(user_id: int, city: str):
     conn.commit()
     cursor.close()
     conn.close()
-
