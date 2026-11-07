@@ -15,7 +15,7 @@ def get_gemini_model():
         return None
 
 def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
-    """Суперстабільний текстовий генератор, щоб речі ніколи не висли чи не падали в чужу категорію!"""
+    """Суперстабільний текстовий генератор, щоб речі ніколи не висли!"""
     return "Естетичні базові штани джинси прямого крою у стилі Pinterest"
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
@@ -32,10 +32,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
-        else:
-            clean_items.append(str(item))
+        clean_items.append(str(item))
             
     items_text = "\n".join(clean_items)
 
@@ -64,10 +61,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
-        else:
-            clean_items.append(str(item))
+        clean_items.append(str(item))
             
     items_text = "\n".join(clean_items)
     
@@ -79,7 +73,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
         f"ТВОЄ ЗАВДАННЯ:\n"
         f"1. Склади максимально компактну, капсульну валізу (пакуй мінімум речей, які легко комбінуються між собою, щоб валіза закрилася легенько!).\n"
         f"2. Розпиши готові комбінації речей окремо для кожного дня (День 1, День 2... аж до {days} дня). "
-        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
+        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: upper, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
     )
     
     model = get_gemini_model()
@@ -94,10 +88,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"Річ: {item} (Категорія: {item})")
-        else:
-            clean_items.append(str(item))
+        clean_items.append(str(item))
             
     items_text = "\n".join(clean_items)
     
