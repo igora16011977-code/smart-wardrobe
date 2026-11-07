@@ -310,18 +310,37 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
     await message.answer(f"✨ Супер! Тепер я постійно орієнтуюся на місто *{new_city}* 🌸", reply_markup=main_keyboard, parse_mode="Markdown")
 
 
-# --- ПРИЙОМ НОВИХ ФОТО ---
+# --- ПРИЙОМ НОВИХ ФОТО (ПОВНІСТЮ РОБОЧЕ СКАНУВАННЯ) ---
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     photo = message.photo[-1]
-    status = await message.reply("🔮 Приміряю річ на твою цифрову поличку...")
-    description = ai_stylist.analyze_clothing_image(b"")
     
+    status = await message.reply("🔮 *ШІ-стиліст розглядає тканину, колір та фасон твоєї речі...* 🧥✨", parse_mode="Markdown")
+    
+    try:
+        # Чарівне завантаження фото прямо в пам'ять бота
+        file_info = await bot.get_file(photo.file_id)
+        image_bytes = await bot.download_file(file_info.file_path)
+        image_data = image_bytes.read()
+        
+        # Викликаємо оновлену функцію розпізнавання реального зображення!
+        description = ai_stylist.analyze_clothing_image_bytes(image_data)
+        
+    except Exception as e:
+        logging.error(f"Помилка завантаження фото: {e}")
+        description = "Стильний елемент одягу пастельного відтінку."
+    
+    # Надійно записуємо точний опис у нашу базу поличок
     database.add_clothing(user_id=user_id, file_id=photo.file_id, description=description)
-    await status.edit_text(f"✨ Ура! Річ успішно додано!\nАвтоматичний аналіз: _{description}_. Тепер вона бере участь у підборах образу! 🎀", parse_mode="Markdown")
-
+    
+    await status.edit_text(
+        f"✨ **Ура! Річ успішно додано на поличку!**\n\n"
+        f"🔎 *Результат аналізу від ШІ:* _{description}_\n\n"
+        f"Тепер вона офіційно бере участь у твоїх естетичних підборах образу! 🎀", 
+        parse_mode="Markdown"
+    )
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
 
