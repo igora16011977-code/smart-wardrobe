@@ -16,7 +16,6 @@ import database
 import weather
 import ai_stylist
 
-# Web-сервер для проходження Health Check
 class SafeHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -38,7 +37,6 @@ storage = MemoryStorage()
 bot = Bot(token=config.TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=storage)
 
-# Класи станів FSM
 class UserSettingsStates(StatesGroup):
     waiting_for_city_settings = State()
 
@@ -52,7 +50,6 @@ class TripStates(StatesGroup):
 class EditStates(StatesGroup):
     waiting_for_new_description = State()
 
-# Головне естетичне меню бота 🕊️
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"), KeyboardButton("👗 Візуальна шафа"))
 main_keyboard.row(KeyboardButton("🧳 План подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
@@ -70,7 +67,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         parse_mode="Markdown"
     )
 
-# --- БЛОК 1: 🌤️ ЩО ВДЯГНУТИ СЬОГОДНІ ---
 @dp.message_handler(Text(equals="🌤️ Що вдягнути сьогодні?"), state="*")
 async def ask_for_event(message: types.Message, state: FSMContext):
     await state.finish()
@@ -97,15 +93,13 @@ async def process_event_and_get_outfit(message: types.Message, state: FSMContext
     if not raw_items:
         await message.answer(
             f"📍 **Погода в {user_city}:** {weather_data.get('temp', 12)}°C, {weather_data.get('description', 'без опадів')}.\n\n"
-            "⚠️ *Ой, твоя шафа порожня!* Надішли мені кілька фото твоїх улюблених речей "
-            "(худі, курточки, джинси, кроси), щоб я могла скласти з них пошаровий образ! 💗"
+            "⚠️ *Ой, твоя шафа порожня!* Надішли мені кілька фото твоїх улюблених речей за допомогою меню нижче, щоб я могла скласти з них пошаровий образ! 💗"
         )
         return
 
     full_recommendation = ai_stylist.generate_outfit_recommendation(weather_data, raw_items, event)
     await message.answer(f"📍 **Твій індивідуальний лукбук ({user_city}):**\n\n{full_recommendation}", parse_mode="Markdown")
 
-# --- БЛОК 2: 👗 ВІЗУАЛЬНА ШАФА (ГОРТАННЯ) ---
 def get_categories_keyboard():
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
@@ -130,7 +124,7 @@ async def process_category_view(callback_query: types.CallbackQuery):
     await callback_query.answer()
     
     if not items:
-        await callback_query.message.answer(f"🍦 У категорії *'{category.upper()}'* поки немає доданих речей. Надішли мені фото!", parse_mode="Markdown")
+        await callback_query.message.answer(f"🍦 У категорії *'{category.upper()}'* поки немає доданих речей. Надішли мені фото одягу!", parse_mode="Markdown")
         return
         
     await callback_query.message.delete()
@@ -140,8 +134,6 @@ async def send_wardrobe_gallery_item(chat_id: int, items: list, index: int, cate
     file_id, description, item_id, _ = items[index]
     
     keyboard = InlineKeyboardMarkup(row_width=2)
-    
-    # Стрілочки для красивого гортання речей 💝
     nav_row = []
     if index > 0:
         nav_row.append(InlineKeyboardButton("◀️ Попередня", callback_data=f"slide_{category}_{index-1}"))
@@ -162,13 +154,7 @@ async def send_wardrobe_gallery_item(chat_id: int, items: list, index: int, cate
         f"✨ *Опис:* {description}"
     )
     
-    await bot.send_photo(
-        chat_id=chat_id,
-        photo=file_id,
-        caption=caption,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
+    await bot.send_photo(chat_id=chat_id, photo=file_id, caption=caption, reply_markup=keyboard, parse_mode="Markdown")
 
 @dp.callback_query_handler(Text(startswith="slide_"), state="*")
 async def navigate_gallery(callback_query: types.CallbackQuery):
@@ -189,7 +175,6 @@ async def return_to_categories(callback_query: types.CallbackQuery):
     await callback_query.message.delete()
     await callback_query.message.answer("🎀 **Яку поличку твого гардероба відкриваємо?**", reply_markup=get_categories_keyboard())
 
-# --- БЛОК 2.5: РЕДАГУВАННЯ ТА ВИДАЛЕННЯ ---
 @dp.callback_query_handler(Text(startswith="drop_"), state="*")
 async def delete_item_handler(callback_query: types.CallbackQuery):
     _, item_id_str, category = callback_query.data.split("_")
@@ -235,13 +220,11 @@ async def save_new_description_handler(message: types.Message, state: FSMContext
     if items:
         await send_wardrobe_gallery_item(user_id, items, min(data['index'], len(items)-1), data['category'])
 
-# --- БЛОК 3: 🧳 ПЛАН ПОДОРОЖІ ---
-
 @dp.message_handler(Text(equals="🧳 План подорожі"), state="*")
 async def start_trip_itinerary(message: types.Message, state: FSMContext):
     await state.finish()
     await TripStates.waiting_for_city.set()
-    await message.answer("✈️ Ой, куди ми збираємось подорожувати? Напиши назву міста:")
+    await message.answer("✈️ **Ой, куди ми збираємось подорожувати?** Напиши назву міста:")
 
 @dp.message_handler(state=TripStates.waiting_for_city)
 async def process_trip_city(message: types.Message, state: FSMContext):
@@ -285,7 +268,7 @@ async def check_missing_items(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     raw_items = database.get_user_wardrobe(user_id, "все")
     if not raw_items:
-        await message.answer("🧸 Надішли мені спочатку хоча б 3-5 photoграфiй свого одягу, щоб я розпізнала твою улюблену кольорову палітру!")
+        await message.answer("🧸 Надішли мені спочатку хоча б 3-5 фотографій свого одягу, щоб я розпізнала твою улюблену кольорову палітру!")
         return
     
     await message.answer("🔎 Сканую твої речі, аналізую колірну гаму та підбираю ідеальні базові елементи... ☕️")
@@ -310,14 +293,13 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
     await message.answer(f"✨ Супер! Тепер я постійно орієнтуюся на місто *{new_city}* 🌸", reply_markup=main_keyboard, parse_mode="Markdown")
 
 
-# --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ 🌸 ---
+# --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ ---
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     photo = message.photo[-1]
     
-    # Створюємо зручні інлайн-кнопки для вибору правильної полички
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
         InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{photo.file_id}"),
@@ -333,12 +315,11 @@ async def handle_clothing_photo(message: types.Message):
         parse_mode="Markdown"
     )
 
-@dp.callback_query_handler(types.CallbackQuery.filter(Text(startswith="setcat_")), state="*")
+@dp.callback_query_handler(Text(startswith="setcat_"), state="*")
 async def save_clothing_with_exact_category(callback_query: types.CallbackQuery):
     _, category, file_id = callback_query.data.split("_")
     user_id = callback_query.from_user.id
     
-    # Встановлюємо красиві естетичні текстові описи під кожну поличку
     if category == "верх":
         description = "Ніжне базове оверсайз худі або топ пастельного відтінку."
     elif category == "низ":
@@ -348,10 +329,8 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery)
     else:
         description = "Витончений аксесуар або сумочка для завершення образу."
         
-    # Надійно записуємо в базу даних на правильну поличку!
     database.add_clothing(user_id=user_id, file_id=file_id, description=description)
     
-    # Примусово оновлюємо категорію в базі для залізобетонної надійності
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
@@ -378,3 +357,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
