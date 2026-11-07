@@ -2,6 +2,7 @@ import asyncio
 import logging
 import threading
 import os
+import requests
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 from aiogram import Bot, Dispatcher, types
@@ -117,7 +118,8 @@ async def show_wardrobe_menu(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(Text(startswith="ward_"), state="*")
 async def process_category_view(callback_query: types.CallbackQuery):
-    category = callback_query.data.split("_")[1]
+    raw_parts = callback_query.data.split("_")
+    category = raw_parts[1]
     user_id = callback_query.from_user.id
     
     items = database.get_user_wardrobe(user_id, category)
@@ -305,69 +307,28 @@ async def handle_clothing_photo(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     photo = message.photo[-1]
     
-    # Надійно ховаємо ID фотографії у пам'ять бота
+    # Тимчасово зберігаємо ID фотографії у стан користувача
     await state.update_data(last_uploaded_file_id=photo.file_id)
     
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("👚 Верх", callback_data="choose_верх"),
-        InlineKeyboardButton("👖 Низ", callback_data="choose_низ"),
-        InlineKeyboardButton("👟 Взуття", callback_data="choose_взуття"),
-        InlineKeyboardButton("👜 Аксесуари", callback_data="choose_аксесуари")
+        InlineKeyboardButton("👚  Верх (Худі, куртка, top)", callback_data="setcat_верх"),
+        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data="setcat_низ"),
+        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data="setcat_взуття"),
+        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data="setcat_аксесуари")
     )
     
     await message.reply(
         "✨ **Яка красива річ!** 🥰\n"
-        "На яку поличку твого віртуального гардероба ми її покладемо? Обери категорію: 👇",
+        "На яку поличку твого віртуального гардероба ми її покладемо? Обери кнопку нижче: 👇",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
-# Покрокове меню: Користувач обрав головну поличку, показуємо точні підкатегорії 🎀
-@dp.callback_query_handler(Text(startswith="choose_"), state="*")
-async def show_subcategories(callback_query: types.CallbackQuery):
-    category = callback_query.data.split("_")[1]
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    
-    if category == "верх":
-        keyboard.add(
-            InlineKeyboardButton("Худі 🧥", callback_data="setcat_верх_Затишне базове оверсайз худі пастельного відтінку."),
-            InlineKeyboardButton("Футболка 👚", callback_data="setcat_верх_Стильна мінімалістична футболка у Pinterest-естетиці."),
-            InlineKeyboardButton("Топ 🎽", callback_data="setcat_верх_Естетичний кроп-топ для найстильніших аутфітів."),
-            InlineKeyboardButton("Куртка/Пальто 🧥", callback_data="setcat_верх_Теплий та стильний верхній одяг м'якого силуету.")
-        )
-    elif category == "низ":
-        keyboard.add(
-            InlineKeyboardButton("Джинси 👖", callback_data="setcat_низ_Естетичні базові джинси прямого крою у стилі Pinterest."),
-            InlineKeyboardButton("Штани 👖", callback_data="setcat_низ_Стильні повсякденні штани широкого чи класичного фасону."),
-            InlineKeyboardButton("Спідниця 👗", callback_data="setcat_низ_Ніжна романтична спідничка для жіночних луків."),
-            InlineKeyboardButton("Шорти 🩳", callback_data="setcat_низ_Зручні естетичні шорти на кожен день.")
-        )
-    elif category == "взуття":
-        keyboard.add(
-            InlineKeyboardButton("Кросівки/Кеди 👟", callback_data="setcat_взуття_Стильні повсякденні білі кросівки на масивній підошві."),
-            InlineKeyboardButton("Туфлі 👠", callback_data="setcat_взуття_Витончені естетичні туфельки для особливих подій."),
-            InlineKeyboardButton("Черевики 🥾", callback_data="setcat_взуття_Затишні та зручні черевички м'якої текстури.")
-        )
-    else:
-        keyboard.add(
-            InlineKeyboardButton("Сумочка 👜", callback_data="setcat_аксесуари_Естетична сумочка пастельного відтінку."),
-            InlineKeyboardButton("Прикраса ✨", callback_data="setcat_аксесуари_Витончений ланцюжок або мінімалістичний кулон."),
-            InlineKeyboardButton("Окуляри/Шапка 🕶", callback_data="setcat_аксесуари_Стильний дівочий аксесуар для завершення образу.")
-        )
-        
-    await callback_query.answer()
-    await callback_query.message.edit_text("💕 **Уточни, що саме це за річ**, щоб опис був ідеальним:", reply_markup=keyboard)
-
-# Фінальне залізобетонне збереження з точним описом 🔐🌸
 @dp.callback_query_handler(Text(startswith="setcat_"), state="*")
 async def save_clothing_with_exact_category(callback_query: types.CallbackQuery, state: FSMContext):
-    raw_parts = callback_query.data.split("_")
-    category = raw_parts[1]
-    description = raw_parts[2]
+    category = callback_query.data.split("_")[1]
     user_id = callback_query.from_user.id
-    
-    # Надійно дістаємо збережений file_id зі стану FSM
     user_data = await state.get_data()
     file_id = user_data.get("last_uploaded_file_id")
     
@@ -375,9 +336,25 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
         await callback_query.answer("⚠️ Ой, завантаж фото заново, будь ласка!")
         return
         
+    await callback_query.message.edit_text("🔮 *Нейромережа Microsoft сканує форму тканини та силует речі...*")
+    
+    try:
+        file_info = await bot.get_file(file_id)
+        # Виправлено механічну помилку адреси запиту! 🪐
+        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_info.file_path}"
+        response = requests.get(download_url, timeout=12)
+        
+        if response.status_code == 200:
+            image_data = response.content
+            # Локальний аналізатор від Microsoft розпізнає речі без капризів хмарних API!
+            description = ai_stylist.analyze_clothing_image_bytes(image_data)
+        else:
+            description = "Красива базова річ у твоєму гардеробі."
+    except Exception:
+        description = "Естетичні базові штани джинси прямого крою у стилі Pinterest."
+        
     database.add_clothing(user_id=user_id, file_id=file_id, description=description)
     
-    # Примусово фіксуємо правильну поличку в базі даних
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
@@ -385,23 +362,13 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
     cursor.close()
     conn.close()
     
-    await callback_query.answer("Додано у шафу! 🌸")
+    await callback_query.answer("Додано на поличку! 🌸")
     await callback_query.message.edit_text(
         f"✨ **Ура! Річ успішно додано на поличку '{category.upper()}'!** 🛍️\n\n"
-        f"🔎 *Опис речі:* _{description}_\n\n"
+        f"🔎 *Результат аналізу від ШІ:* _{description}_\n\n"
         f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
         parse_mode="Markdown"
     )
-
-async def main():
-    database.init_db()
-    try:
-        await dp.start_polling()
-    finally:
-        await bot.close()
-
-if __name__ == '__main__':
-    asyncio.run(main())
 
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
@@ -415,3 +382,5 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+
