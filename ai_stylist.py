@@ -40,7 +40,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     items_text = "\n".join(clean_items)
 
     prompt = (
-        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та aesthetic Coquette/Pinterest. "
+        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
         f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
         f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
         f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
