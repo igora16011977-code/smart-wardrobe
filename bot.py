@@ -336,22 +336,10 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
         await callback_query.answer("⚠️ Ой, завантаж фото заново, будь ласка!")
         return
         
-    await callback_query.message.edit_text("🔮 *Нейромережа Microsoft сканує форму тканини та силует речі...*")
+    await callback_query.message.edit_text("🔮 *ШІ-подружка Gemini створює унікальний естетичний опис під твою поличку...*")
     
-    try:
-        file_info = await bot.get_file(file_id)
-        # Виправлено механічну помилку адреси запиту! 🪐
-        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_info.file_path}"
-        response = requests.get(download_url, timeout=12)
-        
-        if response.status_code == 200:
-            image_data = response.content
-            # Локальний аналізатор від Microsoft розпізнає речі без капризів хмарних API!
-            description = ai_stylist.analyze_clothing_image_bytes(image_data)
-        else:
-            description = "Красива базова річ у твоєму гардеробі."
-    except Exception:
-        description = "Естетичні базові штани джинси прямого крою у стилі Pinterest."
+    # Викликаємо нову унікальну генерацію описів від Gemini! 🌟🍰
+    description = ai_stylist.generate_unique_description(category)
         
     database.add_clothing(user_id=user_id, file_id=file_id, description=description)
     
@@ -369,7 +357,6 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
         f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
         parse_mode="Markdown"
     )
-
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
 
