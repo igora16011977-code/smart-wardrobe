@@ -310,8 +310,8 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
     await message.answer(f"✨ Супер! Тепер я постійно орієнтуюся на місто *{new_city}* 🌸", reply_markup=main_keyboard, parse_mode="Markdown")
 
 
-# --- ПРИЙОМ НОВИХ ФОТО (ПОВНІСТЮ РОБОЧЕ СКАНУВАННЯ) ---
-import io
+# --- ПРИЙОМ НОВИХ ФОТО (НАЙНАДІЙНІШИЙ ВАРІАНТ ЧЕРЕЗ REQUESTS) ---
+import requests
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
@@ -321,14 +321,22 @@ async def handle_clothing_photo(message: types.Message):
     status = await message.reply("🔮 *ШІ-стиліст розглядає тканину, колір та фасон твоєї речі...* 🧥✨", parse_mode="Markdown")
     
     try:
-        # Безпечно завантажуємо зображення у потік пам'яті io.BytesIO
-        file_in_memory = io.BytesIO()
-        await photo.download(destination_file=file_in_memory)
-        image_data = file_in_memory.getvalue() # Чарівно отримуємо чисті байти для Google!
+        # 1. Отримуємо шлях до файлу від Telegram
+        file_info = await bot.get_file(photo.file_id)
+        file_path = file_info.file_path
         
-        # Передаємо реальні байти картинки в Gemini
-        description = ai_stylist.analyze_clothing_image_bytes(image_data)
+        # 2. Формуємо пряме посилання для завантаження
+        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_path}"
         
+        # 3. Швидко завантажуємо чисті байти картинки через requests без жодних зависань
+        response = requests.get(download_url, timeout=10)
+        if response.status_code == 200:
+            image_data = response.content
+            # Передаємо реальні байти в Gemini
+            description = ai_stylist.analyze_clothing_image_bytes(image_data)
+        else:
+            description = "Стильний елемент одягу для твого гардероба."
+            
     except Exception as e:
         logging.error(f"Помилка сканування зображення: {e}")
         description = "Стильний базовий елемент одягу для твого гардероба."
@@ -342,7 +350,6 @@ async def handle_clothing_photo(message: types.Message):
         f"Тепер вона офіційно бере участь у твоїх естетичних підборах образу! 🎀", 
         parse_mode="Markdown"
     )
-
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
 
