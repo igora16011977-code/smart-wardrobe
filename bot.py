@@ -299,6 +299,7 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 
 # --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ ---
+import requests
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message, state: FSMContext):
@@ -310,7 +311,7 @@ async def handle_clothing_photo(message: types.Message, state: FSMContext):
     
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data="setcat_верх"),
+        InlineKeyboardButton("👚  Верх (Худі, куртка, топ)", callback_data="setcat_верх"),
         InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data="setcat_низ"),
         InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data="setcat_взуття"),
         InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data="setcat_аксесуари")
@@ -335,18 +336,28 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
     if not file_id:
         await callback_query.answer("⚠️ Ой, завантаж фото заново, будь ласка!")
         return
+
+    await callback_query.message.edit_text("🔮 *ШІ-стиліст уважно роздивляється річ та створює унікальний опис...*")
+    
+    # Завантажуємо реальні байти картинки з серверів Telegram через requests
+    try:
+        file_info = await bot.get_file(file_id)
+        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_info.file_path}"
+        response = requests.get(download_url, timeout=10)
         
-    if category == "верх":
-        description = "Ніжне базове оверсайз худі або топ пастельного відтінку."
-    elif category == "низ":
-        description = "Естетичні базові штани джинси прямого крою у стилі Pinterest."
-    elif category == "взуття":
-        description = "Стильні повсякденні кросівки або естетичне взуття."
-    else:
-        description = "Витончений аксесуар або сумочка для завершення образу."
+        if response.status_code == 200:
+            image_data = response.content
+            # Передаємо байти картинки у нову Base64-функцію Gemini! 🌟
+            description = ai_stylist.analyze_clothing_image_bytes(image_data)
+        else:
+            description = f"Красива базова річ для категорії {category}."
+    except Exception:
+        description = f"Стильний елемент гардероба у категорії {category}."
         
+    # Додаємо річ в базу
     database.add_clothing(user_id=user_id, file_id=file_id, description=description)
     
+    # Залізобетонно примусово фіксуємо обрану тобою поличку в БД! 🔐
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
@@ -357,9 +368,20 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
     await callback_query.answer("Додано на поличку! 🌸")
     await callback_query.message.edit_text(
         f"✨ **Ура! Річ успішно додано на поличку '{category.upper()}'!** 🛍️\n\n"
+        f"🔎 *Результат аналізу від ШІ:* _{description}_\n\n"
         f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
         parse_mode="Markdown"
     )
+
+async def main():
+    database.init_db()
+    try:
+        await dp.start_polling()
+    finally:
+        await bot.close()
+
+if __name__ == '__main__':
+    asyncio.run(main())
 
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
