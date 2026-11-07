@@ -310,46 +310,62 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
     await message.answer(f"✨ Супер! Тепер я постійно орієнтуюся на місто *{new_city}* 🌸", reply_markup=main_keyboard, parse_mode="Markdown")
 
 
-# --- ПРИЙОМ НОВИХ ФОТО (НАЙНАДІЙНІШИЙ ВАРІАНТ ЧЕРЕЗ REQUESTS) ---
-import requests
+# --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ 🌸 ---
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     photo = message.photo[-1]
     
-    status = await message.reply("🔮 *ШІ-стиліст розглядає тканину, колір та фасон твоєї речі...* 🧥✨", parse_mode="Markdown")
+    # Створюємо зручні інлайн-кнопки для вибору правильної полички
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{photo.file_id}"),
+        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data=f"setcat_низ_{photo.file_id}"),
+        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data=f"setcat_взуття_{photo.file_id}"),
+        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data=f"setcat_аксесуари_{photo.file_id}")
+    )
     
-    try:
-        # 1. Отримуємо шлях до файлу від Telegram
-        file_info = await bot.get_file(photo.file_id)
-        file_path = file_info.file_path
-        
-        # 2. Формуємо пряме посилання для завантаження
-        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_path}"
-        
-        # 3. Швидко завантажуємо чисті байти картинки через requests без жодних зависань
-        response = requests.get(download_url, timeout=10)
-        if response.status_code == 200:
-            image_data = response.content
-            # Передаємо реальні байти в Gemini
-            description = ai_stylist.analyze_clothing_image_bytes(image_data)
-        else:
-            description = "Стильний елемент одягу для твого гардероба."
-            
-    except Exception as e:
-        logging.error(f"Помилка сканування зображення: {e}")
-        description = "Стильний базовий елемент одягу для твого гардероба."
-    
-    # Надійно записуємо точний опис у базу поличок
-    database.add_clothing(user_id=user_id, file_id=photo.file_id, description=description)
-    
-    await status.edit_text(
-        f"✨ **Ура! Річ успішно додано на поличку!**\n\n"
-        f"🔎 *Результат аналізу від ШІ:* _{description}_\n\n"
-        f"Тепер вона офіційно бере участь у твоїх естетичних підборах образу! 🎀", 
+    await message.reply(
+        "✨ **Яка красива річ!** 🥰\n"
+        "На яку поличку твого віртуального гардероба ми її покладемо? Обери кнопку нижче: 👇",
+        reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+@dp.callback_query_handler(types.CallbackQuery.filter(Text(startswith="setcat_")), state="*")
+async def save_clothing_with_exact_category(callback_query: types.CallbackQuery):
+    _, category, file_id = callback_query.data.split("_")
+    user_id = callback_query.from_user.id
+    
+    # Встановлюємо красиві естетичні текстові описи під кожну поличку
+    if category == "верх":
+        description = "Ніжне базове оверсайз худі або топ пастельного відтінку."
+    elif category == "низ":
+        description = "Естетичні базові штани джинси прямого крою у стилі Pinterest."
+    elif category == "взуття":
+        description = "Стильні повсякденні кросівки або естетичне взуття."
+    else:
+        description = "Витончений аксесуар або сумочка для завершення образу."
+        
+    # Надійно записуємо в базу даних на правильну поличку!
+    database.add_clothing(user_id=user_id, file_id=file_id, description=description)
+    
+    # Примусово оновлюємо категорію в базі для залізобетонної надійності
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    await callback_query.answer("Додано на поличку! 🌸")
+    await callback_query.message.edit_text(
+        f"✨ **Ура! Річ успішно додано на поличку '{category.upper()}'!** 🛍️\n\n"
+        f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
+        parse_mode="Markdown"
+    )
+
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
 
