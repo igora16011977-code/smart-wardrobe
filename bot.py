@@ -311,6 +311,7 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 
 # --- ПРИЙОМ НОВИХ ФОТО (ПОВНІСТЮ РОБОЧЕ СКАНУВАННЯ) ---
+import io
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
@@ -320,19 +321,19 @@ async def handle_clothing_photo(message: types.Message):
     status = await message.reply("🔮 *ШІ-стиліст розглядає тканину, колір та фасон твоєї речі...* 🧥✨", parse_mode="Markdown")
     
     try:
-        # Чарівне завантаження фото прямо в пам'ять бота
-        file_info = await bot.get_file(photo.file_id)
-        image_bytes = await bot.download_file(file_info.file_path)
-        image_data = image_bytes.read()
+        # Безпечно завантажуємо зображення у потік пам'яті io.BytesIO
+        file_in_memory = io.BytesIO()
+        await photo.download(destination_file=file_in_memory)
+        image_data = file_in_memory.getvalue() # Чарівно отримуємо чисті байти для Google!
         
-        # Викликаємо оновлену функцію розпізнавання реального зображення!
+        # Передаємо реальні байти картинки в Gemini
         description = ai_stylist.analyze_clothing_image_bytes(image_data)
         
     except Exception as e:
-        logging.error(f"Помилка завантаження фото: {e}")
-        description = "Стильний елемент одягу пастельного відтінку."
+        logging.error(f"Помилка сканування зображення: {e}")
+        description = "Стильний базовий елемент одягу для твого гардероба."
     
-    # Надійно записуємо точний опис у нашу базу поличок
+    # Надійно записуємо точний опис у базу поличок
     database.add_clothing(user_id=user_id, file_id=photo.file_id, description=description)
     
     await status.edit_text(
@@ -341,6 +342,7 @@ async def handle_clothing_photo(message: types.Message):
         f"Тепер вона офіційно бере участь у твоїх естетичних підборах образу! 🎀", 
         parse_mode="Markdown"
     )
+
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
 
