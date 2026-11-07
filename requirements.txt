@@ -3,3 +3,4 @@ python-dotenv
 requests
 openai
 psycopg2-binary==2.9.9
+google-generativeai
