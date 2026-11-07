@@ -117,7 +117,7 @@ async def show_wardrobe_menu(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(Text(startswith="ward_"), state="*")
 async def process_category_view(callback_query: types.CallbackQuery):
-    category = callback_query.data.split("_")
+    category = callback_query.data.split("_")[1]
     user_id = callback_query.from_user.id
     
     items = database.get_user_wardrobe(user_id, category)
@@ -158,8 +158,9 @@ async def send_wardrobe_gallery_item(chat_id: int, items: list, index: int, cate
 
 @dp.callback_query_handler(Text(startswith="slide_"), state="*")
 async def navigate_gallery(callback_query: types.CallbackQuery):
-    _, category, index_str = callback_query.data.split("_")
-    index = int(index_str)
+    raw_parts = callback_query.data.split("_")
+    category = raw_parts[1]
+    index = int(raw_parts[2])
     user_id = callback_query.from_user.id
     
     items = database.get_user_wardrobe(user_id, category)
@@ -177,8 +178,9 @@ async def return_to_categories(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(Text(startswith="drop_"), state="*")
 async def delete_item_handler(callback_query: types.CallbackQuery):
-    _, item_id_str, category = callback_query.data.split("_")
-    item_id = int(item_id_str)
+    raw_parts = callback_query.data.split("_")
+    item_id = int(raw_parts[1])
+    category = raw_parts[2]
     user_id = callback_query.from_user.id
     
     database.delete_clothing(item_id, user_id)
@@ -193,11 +195,14 @@ async def delete_item_handler(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(Text(startswith="change_"), state="*")
 async def edit_description_handler(callback_query: types.CallbackQuery, state: FSMContext):
-    _, item_id_str, category, index_str = callback_query.data.split("_")
+    raw_parts = callback_query.data.split("_")
+    item_id = int(raw_parts[1])
+    category = raw_parts[2]
+    index = int(raw_parts[3])
     await callback_query.answer()
     
     await EditStates.waiting_for_new_description.set()
-    await state.update_data(item_id=int(item_id_str), category=category, index=int(index_str), msg_id=callback_query.message.message_id)
+    await state.update_data(item_id=item_id, category=category, index=index, msg_id=callback_query.message.message_id)
     
     await callback_query.message.answer("✍ *Напиши мені новий естетичний опис для цієї речі:*", parse_mode="Markdown")
 
@@ -294,19 +299,21 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 
 # --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ ---
+
 @dp.message_handler(content_types=['photo'], state="*")
-async def handle_clothing_photo(message: types.Message):
+async def handle_clothing_photo(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    # Обов'язково беремо НАЙБІЛЬШИЙ розмір фото зі списку [-1]
-    last_photo = message.photo[-1]
-    f_id = last_photo.file_id
+    photo = message.photo[-1]
+    
+    # Тимчасово зберігаємо ID фотографії у стан користувача
+    await state.update_data(last_uploaded_file_id=photo.file_id)
     
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{f_id}"),
-        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data=f"setcat_низ_{f_id}"),
-        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data=f"setcat_взуття_{f_id}"),
-        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data=f"setcat_аксесуари_{f_id}")
+        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data="setcat_верх"),
+        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data="setcat_низ"),
+        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data="setcat_взуття"),
+        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data="setcat_аксесуари")
     )
     
     await message.reply(
@@ -317,13 +324,18 @@ async def handle_clothing_photo(message: types.Message):
     )
 
 @dp.callback_query_handler(Text(startswith="setcat_"), state="*")
-async def save_clothing_with_exact_category(callback_query: types.CallbackQuery):
-    # Акуратно розділяємо дані за нижнім підкресленням
-    raw_data = callback_query.data.split("_")
-    category = raw_data[1]
-    file_id = raw_data[2]
+async def save_clothing_with_exact_category(callback_query: types.CallbackQuery, state: FSMContext):
+    category = callback_query.data.split("_")[1]
     user_id = callback_query.from_user.id
     
+    # Надійно дістаємо збережений file_id зі стану
+    user_data = await state.get_data()
+    file_id = user_data.get("last_uploaded_file_id")
+    
+    if not file_id:
+        await callback_query.answer("⚠️ Ой, завантаж фото заново, будь ласка!")
+        return
+        
     if category == "верх":
         description = "Ніжне базове оверсайз худі або топ пастельного відтінку."
     elif category == "низ":
@@ -348,19 +360,6 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery)
         f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
         parse_mode="Markdown"
     )
-
-
-# --- ГОЛОВНИЙ СТАРТ БОТА ---
-
-async def main():
-    database.init_db()
-    try:
-        await dp.start_polling()
-    finally:
-        await bot.close()
-
-if __name__ == '__main__':
-    asyncio.run(main())
 
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
