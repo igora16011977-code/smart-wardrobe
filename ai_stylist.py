@@ -40,7 +40,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     items_text = "\n".join(clean_items)
 
     prompt = (
-        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
+        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та aesthetic Coquette/Pinterest. "
         f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
         f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
         f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
@@ -59,7 +59,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
             return f"{weather_header}{response.text.strip()}"
         except Exception as e:
             return f"{weather_header}❌ Ой, красуне, ШІ-подружка припудрює носик. Спробуй ще раз! ({e})"
-    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай більше photo речей у свій гардероб!"
+    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай більше речей у свій гардероб!"
 
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
     clean_items = []
@@ -116,4 +116,4 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
             return response.text.strip()
         except Exception as e:
             return f"❌ Не вдалося проаналізувати гардероб: {e}"
-    return "Додайте більше photo вашого одягу!"
+    return "Додайте більше фото вашого одягу!"
