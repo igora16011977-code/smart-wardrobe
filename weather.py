@@ -27,7 +27,6 @@ def get_weather(city: str) -> dict:
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
-    # ВИПРАВЛЕНО: Правильний API URL для прогнозу та параметр ?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -39,7 +38,7 @@ def get_weather_forecast(city: str) -> dict:
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],
+                    "description": first_forecast["weather"][0]["description"], # ВИПРАВЛЕНО: додано [0]
                     "city": data["city"]["name"]
                 }
     except Exception as e:
@@ -51,3 +50,4 @@ def get_weather_forecast(city: str) -> dict:
         "description": "сонячно" if default_temp == 25 else "хмарно з проясненнями",
         "city": city
     }
+
