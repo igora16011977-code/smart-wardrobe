@@ -332,13 +332,11 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 # --- ПРИЙОМ НОВИХ ФОТО (ІЗ ЗАВАНТАЖЕННЯМ БАЙТІВ ДЛЯ GEMINI) ---
 
-# Знайди цей блок у своєму головному файлі та заміни на цей:
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     
-    # ОПТИМІЗАЦІЯ 1: Беремо середню якість фото ([-2] замість [-1])
-    # Воно завантажиться миттєво, а Gemini розпізнає річ так само круто!
+    # Вибираємо середню якість для швидкого завантаження
     if len(message.photo) > 1:
         photo = message.photo[-2]
     else:
@@ -348,17 +346,20 @@ async def handle_clothing_photo(message: types.Message):
     await bot.send_chat_action(message.chat.id, types.ChatActions.TYPING)
     
     try:
-        # Отримуємо файл
+        # Завантажуємо файл із Telegram
         photo_file = await bot.get_file(photo.file_id)
         photo_buffer = BytesIO()
-        
         await bot.download_file(photo_file.file_path, photo_buffer)
-        image_bytes = photo_buffer.getvalue()
         
-        # ОПТИМІЗАЦІЯ 2: Звільняємо пам'ять одразу після отримання байтів
+        # ВИПРАВЛЕНО: Скидаємо покажчик буфера в початок, щоб прочитати його коректно
+        photo_buffer.seek(0)
+        image_bytes = photo_buffer.read()
         photo_buffer.close()
         
-        # Запускаємо синхронний запит до Gemini в окремому потоці
+        if not image_bytes:
+            raise ValueError("Файл порожній або пошкоджений")
+        
+        # Передаємо чисті байти в окремому потоці
         description = await asyncio.to_thread(ai_stylist.analyze_clothing_image, image_bytes)
         
         # Зберігаємо в базу даних
@@ -369,8 +370,9 @@ async def handle_clothing_photo(message: types.Message):
             parse_mode="Markdown"
         )
     except Exception as e:
-        logging.error(f"Помилка завантаження фото: {e}")
-        await status.edit_text("❌ Ой, красуне, ШІ-подружка трохи втомилася і не змогла розібрати фото. Спробуй ще раз! 💕")
+        logging.error(f"Помилка в handle_clothing_photo: {e}")
+        await status.edit_text("❌ Ой, красуне, ШІ-подружка трохи втомилася і не змогла розібрати фото. Спробуй надіслати його окремо! 💕")
+
 
 
 
