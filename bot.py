@@ -251,13 +251,6 @@ async def start_trip_itinerary(message: types.Message, state: FSMContext):
     await TripStates.waiting_for_city.set()
     await message.answer("✈️ Ой, куди ми збираємось подорожувати? Напиши назву міста:")
 
-@dp.message_handler(state=TripStates.waiting_for_city)
-async def process_trip_city(message: types.Message, state: FSMContext):
-    city = message.text.strip()
-    await state.update_data(trip_city=city)
-    await TripStates.waiting_for_days.set()
-    await message.answer(f"🗺️ Романтично! Місто призначення: *{city}*. А на скільки днів ти туди вирушаєш?", parse_mode="Markdown")
-
 @dp.message_handler(state=TripStates.waiting_for_days)
 async def process_trip_days(message: types.Message, state: FSMContext):
     days_text = message.text.strip()
@@ -270,30 +263,30 @@ async def process_trip_days(message: types.Message, state: FSMContext):
     destination = data['trip_city']
     await state.finish()
     
-    # Створюємо статус і вмикаємо анімацію "друкує"
     status_msg = await message.answer(f"🧁 Збираю компактну валізу та планую Pinterest-аутфіти на кожен із {days} днів подорожі... ✨")
     await bot.send_chat_action(message.chat.id, types.ChatActions.TYPING)
     
     try:
-        # Отримуємо погоду
+        # Отримуємо прогноз погоди
         trip_weather = weather.get_weather_forecast(city=destination)
         weather_desc = f"{trip_weather.get('temp', 12)}°C, {trip_weather.get('description', 'чудова погода')}"
         
         wardrobe = database.get_user_wardrobe(user_id=message.from_user.id, category="все")
         if not wardrobe:
-            await status_msg.edit_text("⚠️ Твоя шафа порожня! Додай спочатку фото речей, щоб я могла спакувати твою стильну валізу.")
+            await status_msg.edit_text("⚠️ Твоя шафа порожня! Додай спочатку фото речей, щоб я могла спакувати твою стильну валізу. 🎀")
             return
             
-        # ВИПРАВЛЕНО: Запуск генерації довгого плану подорожі в окремому потоці!
+        # Асинхронний виклик Gemini для великого тексту
         itinerary = await asyncio.to_thread(ai_stylist.generate_trip_itinerary, weather_desc, wardrobe, destination, days)
         
-        # Видаляємо проміжне повідомлення і надсилаємо красивий результат
         await status_msg.delete()
-        await message.answer(f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}", parse_mode="Markdown")
+        await message.answer(f"🧳 **Твій розумний гайд для мандрівки у м. {destination}:**\n\n{itinerary}", parse_mode="Markdown")
         
     except Exception as e:
         logging.error(f"Помилка планування подорожі: {e}")
-        await status_msg.edit_text("❌ Ой, малятко, щось пішло не так при зборі валізи. Спробуй ще раз трохи пізніше! 💕")
+        # ВИПРАВЛЕНО: тепер бот не мовчить, а каже, де саме сталася проблема
+        await status_msg.edit_text(f"❌ Ой, красуне, сталася помилка при зборі валізи: {e}")
+
 
 
 
