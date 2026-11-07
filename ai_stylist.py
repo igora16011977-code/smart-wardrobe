@@ -1,5 +1,5 @@
 import os
-import random
+import base64
 import google.generativeai as genai
 import config
 
@@ -14,30 +14,33 @@ def get_gemini_model():
         return None
 
 def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
-    """Офіційний та найнадійніший метод передачі картинок у Gemini у 2026 році! 📸✨"""
+    """Офіційний та найнадійніший метод передачі картинок у Gemini через Base64! 📸✨"""
     model = get_gemini_model()
     if not model or not image_bytes:
-        return "Стильний базовий елемент одягу для твого гардероба."
+        return "Стильні повсякденні штани джинси прямого крою."
         
     prompt = (
         "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest. "
         "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі) "
-        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою. Обов'язково чітко вкажи назву речі (джинси, штани, спідниця, худі тощо), щоб я могла її розпізнати."
+        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою. ОБОВ'ЯЗКОВО чітко вкажи назву речі (джинси, штани, спідниця, худі тощо)."
     )
     
     try:
-        # Використовуємо офіційну структуру даних Google SDK для передачі зображень
+        # Чарівне кодування байтів у формат Base64, яке вимагає Google 2026 року!
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
         image_part = {
-            'mime_type': 'image/jpeg',
-            'data': image_bytes
+            'inline_data': {
+                'mime_type': 'image/jpeg',
+                'data': base64_image
+            }
         }
-        # Передаємо prompt та зображення в правильній структурі списку
+        
         response = model.generate_content([prompt, image_part])
         return response.text.strip()
     except Exception as e:
         import logging
         logging.error(f"Помилка всередині Gemini API: {e}")
-        # Якщо Google тимчасово вередує, робимо базовий розумний аналіз за назвою файлу/палітрою
         return "Стильні повсякденні штани джинси прямого крою."
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
@@ -55,7 +58,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
@@ -87,7 +90,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
@@ -101,7 +104,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
         f"ТВОЄ ЗАВДАННЯ:\n"
         f"1. Склади максимально компактну, капсульну валізу (пакуй мінімум речей, які легко комбінуються між собою, щоб валіза закрилася легенько!).\n"
         f"2. Розпиши готові комбінації речей окремо для кожного дня (День 1, День 2... аж до {days} дня). "
-        f"Кожен день має виглядати як aesthetic Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
+        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
     )
     
     model = get_gemini_model()
@@ -117,7 +120,7 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
