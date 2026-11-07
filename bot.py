@@ -270,19 +270,31 @@ async def process_trip_days(message: types.Message, state: FSMContext):
     destination = data['trip_city']
     await state.finish()
     
-    await message.answer(f"🧁 Збираю компактну валізу та планую Pinterest-аутфіти на кожен із {days} днів подорожі... ✨")
+    # Створюємо статус і вмикаємо анімацію "друкує"
+    status_msg = await message.answer(f"🧁 Збираю компактну валізу та планую Pinterest-аутфіти на кожен із {days} днів подорожі... ✨")
+    await bot.send_chat_action(message.chat.id, types.ChatActions.TYPING)
     
-    user_id = message.from_user.id
-    trip_weather = weather.get_weather_forecast(city=destination)
-    weather_desc = f"{trip_weather.get('temp', 12)}°C, {trip_weather.get('description', 'чудова погода')}"
-    
-    wardrobe = database.get_user_wardrobe(user_id, "все")
-    if not wardrobe:
-        await message.answer("⚠️ Твоя шафа порожня! Додай спочатку фото речей, щоб я могла спакувати твою стильну валізу.")
-        return
+    try:
+        # Отримуємо погоду
+        trip_weather = weather.get_weather_forecast(city=destination)
+        weather_desc = f"{trip_weather.get('temp', 12)}°C, {trip_weather.get('description', 'чудова погода')}"
         
-    itinerary = ai_stylist.generate_trip_itinerary(weather_desc, wardrobe, destination, days)
-    await message.answer(f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}", parse_mode="Markdown")
+        wardrobe = database.get_user_wardrobe(user_id=message.from_user.id, category="все")
+        if not wardrobe:
+            await status_msg.edit_text("⚠️ Твоя шафа порожня! Додай спочатку фото речей, щоб я могла спакувати твою стильну валізу.")
+            return
+            
+        # ВИПРАВЛЕНО: Запуск генерації довгого плану подорожі в окремому потоці!
+        itinerary = await asyncio.to_thread(ai_stylist.generate_trip_itinerary, weather_desc, wardrobe, destination, days)
+        
+        # Видаляємо проміжне повідомлення і надсилаємо красивий результат
+        await status_msg.delete()
+        await message.answer(f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}", parse_mode="Markdown")
+        
+    except Exception as e:
+        logging.error(f"Помилка планування подорожі: {e}")
+        await status_msg.edit_text("❌ Ой, малятко, щось пішло не так при зборі валізи. Спробуй ще раз трохи пізніше! 💕")
+
 
 
 # --- БЛОК 4: 🛍️ ЧОГО НЕ ВИСТАЧАЄ ---
