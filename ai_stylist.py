@@ -1,14 +1,17 @@
 import os
 import random
-import openai
+import google.generativeai as genai
 import config
 
-def get_openai_client():
-    api_key = getattr(config, "OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+def get_gemini_model():
+    # Беремо безкоштовний ключ Google із конфігу чи системи
+    api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
     if not api_key:
         return None
     try:
-        return openai.OpenAI(api_key=api_key)
+        genai.configure(api_key=api_key)
+        # Використовуємо супершвидку та безкоштовну модель від Google
+        return genai.GenerativeModel('gemini-1.5-flash')
     except Exception:
         return None
 
@@ -34,7 +37,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"💨 Вітерець: `{wind} м/с` | 💧 Вологість: `{humidity}%` \n\n"
     )
 
-    items_text = "\n".join([f"- ID {item[2]} (Поличка: {item[3]}): {item[1]}" for item in wardrobe_items])
+    items_text = "\n".join([f"- ID {item[2]} (Поличка: {item[3]}): {item[1]}" for item in wardrobe_items if isinstance(item, (tuple, list))])
 
     prompt = (
         f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
@@ -49,22 +52,17 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"💕 Чому цей образ ідеальний: (Напиши комплімент дівчині та поясни, чому ці шари будуть комфортні для {temp}°C та події '{event}')"
     )
 
-    client = get_openai_client()
-    if client:
+    model = get_gemini_model()
+    if model:
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_completion_tokens=650
-            )
-            return f"{weather_header}{response.choices[0].message.content.strip()}"
+            response = model.generate_content(prompt)
+            return f"{weather_header}{response.text.strip()}"
         except Exception as e:
-            return f"{weather_header}❌ Ой, красуне, ШІ-стиліст припудрив носик, спробуй ще раз! ({e})"
+            return f"{weather_header}❌ Ой, красуне, ШІ-подружка припудрює носик. Спробуй ще раз! ({e})"
     return f"{weather_header}👕 Футболка + 👖 Джинси. Додай фото речей, щоб увімкнути магію!"
 
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
-    items_text = "\n".join([f"- ID {item[2]} ({item[3]}): {item[1]}" for item in wardrobe_items])
+    items_text = "\n".join([f"- ID {item[2]} ({item[3]}): {item[1]}" for item in wardrobe_items if isinstance(item, (tuple, list))])
     
     prompt = (
         f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
@@ -77,22 +75,17 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
         f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
     )
     
-    client = get_openai_client()
-    if client:
+    model = get_gemini_model()
+    if model:
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_completion_tokens=1000
-            )
-            return response.choices[0].message.content.strip()
+            response = model.generate_content(prompt)
+            return response.text.strip()
         except Exception as e:
             return f"❌ Ой, не вдалося зібрати валізу: {e}"
     return "Помилка ініціалізації ШІ-стиліста подорожей."
 
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
-    items_text = "\n".join([f"- {item[1]} (Категорія: {item[3]})" for item in wardrobe_items])
+    items_text = "\n".join([f"- {item[1]} (Категорія: {item[3]})" for item in wardrobe_items if isinstance(item, (tuple, list))])
     
     prompt = (
         f"Ти — професійна дівчина-стиліст. Проаналізуй поточну шафу користувачки:\n{items_text}\n\n"
@@ -102,16 +95,11 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
         f"Стиль написання — милий, фенсі, дружній з емодзі."
     )
     
-    client = get_openai_client()
-    if client:
+    model = get_gemini_model()
+    if model:
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_completion_tokens=650
-            )
-            return response.choices[0].message.content.strip()
+            response = model.generate_content(prompt)
+            return response.text.strip()
         except Exception as e:
             return f"❌ Не вдалося проаналізувати гардероб: {e}"
     return "Додайте більше фото вашого одягу!"
