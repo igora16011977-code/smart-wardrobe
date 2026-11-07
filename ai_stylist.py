@@ -11,7 +11,7 @@ def get_gemini_model():
     try:
         genai.configure(api_key=api_key)
         # Використовуємо супершвидку та безкоштовну модель від Google
-        return genai.GenerativeModel('gemini-1.5-flash')
+        return genai.GenerativeModel('gemini-pro')
     except Exception:
         return None
 
