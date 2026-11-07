@@ -1,5 +1,5 @@
 import os
-import random
+import base64
 import google.generativeai as genai
 import config
 
@@ -15,8 +15,32 @@ def get_gemini_model():
         return None
 
 def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
-    """Суперстабільний текстовий генератор, щоб речі ніколи не висли!"""
-    return "Естетичні базові штани джинси прямого крою у стилі Pinterest"
+    """Ця функція ПРАВИЛЬНО та унікально аналізує реальне фото через безкоштовний ШІ Google! 📸✨"""
+    model = get_gemini_model()
+    if not model or not image_bytes:
+        return "Стильний повсякденний елемент одягу у твоєму гардеробі."
+        
+    prompt = (
+        "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest. "
+        "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі) "
+        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою."
+    )
+    
+    try:
+        # Кодуємо картинку в Base64 текстовий формат для стабільного читання моделлю 2026 року
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        image_part = {
+            'inline_data': {
+                'mime_type': 'image/jpeg',
+                'data': base64_image
+            }
+        }
+        response = model.generate_content([prompt, image_part])
+        return response.text.strip()
+    except Exception as e:
+        import logging
+        logging.error(f"Помилка всередині Gemini API: {e}")
+        return "Красива базова річ для твоїх найстильніших аутфітів."
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     temp = weather_info.get('temp', 12)
@@ -73,7 +97,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
         f"ТВОЄ ЗАВДАННЯ:\n"
         f"1. Склади максимально компактну, капсульну валізу (пакуй мінімум речей, які легко комбінуються між собою, щоб валіза закрилася легенько!).\n"
         f"2. Розпиши готові комбінації речей окремо для кожного дня (День 1, День 2... аж до {days} дня). "
-        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: upper, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
+        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
     )
     
     model = get_gemini_model()
