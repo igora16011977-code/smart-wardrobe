@@ -11,7 +11,7 @@ def get_gemini_model():
     try:
         genai.configure(api_key=api_key)
         # Вказуємо найновішу офіційну та стабільну безкоштовну модель
-        return genai.GenerativeModel('gemini-2.5-flash')
+        return genai.GenerativeModel('gemini-3.8-flash')
     except Exception:
         return None
 
