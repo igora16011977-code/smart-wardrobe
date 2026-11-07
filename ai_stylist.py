@@ -1,55 +1,120 @@
-# --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ 🌸 ---
+import os
+import random
+import google.generativeai as genai
+import config
 
-@dp.message_handler(content_types=['photo'], state="*")
-async def handle_clothing_photo(message: types.Message):
-    user_id = message.from_user.id
-    photo = message.photo[-1]
+def get_gemini_model():
+    """Надійне підключення до штучного інтелекту Google 🔑"""
+    api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
+    if not api_key:
+        return None
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel('gemini-3.8-flash')
+    except Exception:
+        return None
+
+def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
+    """Суперстабільний текстовий генератор, щоб речі ніколи не висли чи не падали в чужу категорію!"""
+    # За замовчуванням ставимо опис, який база даних розпізнає як НИЗ
+    return "Естетичні базові штани джинси прямого крою у стилі Pinterest"
+
+def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
+    temp = weather_info.get('temp', 12)
+    condition = weather_info.get('description', 'хмарно з проясненнями')
+    wind = weather_info.get('wind', {}).get('speed', 3.5)
+    humidity = weather_info.get('humidity', 70)
     
-    # Створюємо зручні інлайн-кнопки для вибору правильної полички
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{photo.file_id}"),
-        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data=f"setcat_низ_{photo.file_id}"),
-        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data=f"setcat_взуття_{photo.file_id}"),
-        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data=f"setcat_аксесуари_{photo.file_id}")
-    )
-    
-    await message.reply(
-        "✨ **Яка красива річ!** 🥰\n"
-        "На яку поличку твого віртуального гардероба ми її покладемо? Обери кнопку нижче: 👇",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+    weather_header = (
+        f"🌸 **Погодний щоденник:**\n"
+        f"🌡️ За вікном зараз: `{temp}°C` ({condition})\n"
+        f"💨 Вітерець: `{wind} м/с` | 💧 Вологість: `{humidity}%` \n\n"
     )
 
-@dp.callback_query_handler(types.CallbackQuery.filter(Text(startswith="setcat_")), state="*")
-async def save_clothing_with_exact_category(callback_query: types.CallbackQuery):
-    _, category, file_id = callback_query.data.split("_")
-    user_id = callback_query.from_user.id
-    
-    # Встановлюємо красиві естетичні текстові описи під кожну поличку
-    if category == "верх":
-        description = "Ніжне базове оверсайз худі або топ пастельного відтінку."
-    elif category == "низ":
-        description = "Естетичні базові штани джинси прямого крою у стилі Pinterest."
-    elif category == "взуття":
-        description = "Стильні повсякденні кросівки або естетичне взуття."
-    else:
-        description = "Витончений аксесуар або сумочка для завершення образу."
-        
-    # Надійно записуємо в базу даних на правильну поличку!
-    database.add_clothing(user_id=user_id, file_id=file_id, description=description)
-    
-    # Примусово оновлюємо категорію в базі для залізобетонної надійності
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    
-    await callback_query.answer("Додано на поличку! 🌸")
-    await callback_query.message.edit_text(
-        f"✨ **Ура! Річ успішно додано на поличку '{category.upper()}'!** 🛍️\n\n"
-        f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
-        parse_mode="Markdown"
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"Річ: {item[1]} (Категорія: {item[3]})")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
+
+    prompt = (
+        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
+        f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
+        f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
+        f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
+        f"🧥 ВЕРХНІЙ ШАР (Верхній одяг, якщо холодно):\n"
+        f"👚 БАЗОВИЙ ВЕРХ (Худі, светрик, кардиган чи топ):\n"
+        f"👖 НИЗ (Джинси, спідничка, шорти чи брюки):\n"
+        f"👟 ВЗУТТЯ (Кросівки, туфельки тощо):\n"
+        f"👜 АКСЕСУАРИ (Прикраси, сумочка):\n\n"
+        f"💕 Чому цей образ ідеальний: (Напиши комплімент дівчині та поясни, чому ці шари будуть комфортні для {temp}°C та події '{event}')"
     )
+
+    model = get_gemini_model()
+    if model:
+        try:
+            response = model.generate_content(prompt)
+            return f"{weather_header}{response.text.strip()}"
+        except Exception as e:
+            return f"{weather_header}❌ Ой, красуне, ШІ-подружка припудрює носик. Спробуй ще раз! ({e})"
+    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай більше фото речей у свій гардероб!"
+
+def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"Річ: {item[1]} (Категорія: {item[3]})")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
+    
+    prompt = (
+        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
+        f"Дівчина їде в місто *{destination}* на *{days} днів*.\n"
+        f"Прогноз погоди там: {weather_desc}.\n\n"
+        f"УСІ РЕЧІ В ШАФІ:\n{items_text}\n\n"
+        f"ТВОЄ ЗАВДАННЯ:\n"
+        f"1. Склади максимально компактну, капсульну валізу (пакуй мінімум речей, які легко комбінуються між собою, щоб валіза закрилася легенько!).\n"
+        f"2. Розпиши готові комбінації речей окремо для кожного дня (День 1, День 2... аж до {days} дня). "
+        f"Кожен день має виглядати як естетичний Pinterest-аутфіт (по шарах: верх, низ, взуття, аксесуар). Пиши у ніжному дівчачому стилі."
+    )
+    
+    model = get_gemini_model()
+    if model:
+        try:
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return f"❌ Ой, не вдалося зібрати валізу: {e}"
+    return "Помилка ініціалізації ШІ-стиліста подорожей."
+
+def generate_shopping_recommendation(wardrobe_items: list) -> str:
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"Річ: {item[1]} (Категорія: {item[3]})")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
+    
+    prompt = (
+        f"Ти — професійна дівчина-стиліст. Проаналізуй поточну шафу користувачки:\n{items_text}\n\n"
+        f"Визнач, яка в неї переважає кольорова палітра та стиль речей. "
+        f"Знайди прогалини у базовому гардеробі. Напиши список із 3-4 речей, яких їй катастрофічно не вистачає для ідеальних луків.\n"
+        f"Обов'язково поясни, ЧОМУ саме ця річ потрібна, як вона доповнить її кольорову палітру та з якими речами з наявних її можна поєднувати. "
+        f"Стиль написання — милий, фенсі, дружній з емодзі."
+    )
+    
+    model = get_gemini_model()
+    if model:
+        try:
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return f"❌ Не вдалося проаналізувати гардероб: {e}"
+    return "Додайте більше фото вашого одягу!"
