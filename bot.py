@@ -299,14 +299,13 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 
 # --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ ---
-import requests
+import random
 
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     photo = message.photo[-1]
     
-    # Тимчасово зберігаємо ID фотографії у стан користувача
     await state.update_data(last_uploaded_file_id=photo.file_id)
     
     keyboard = InlineKeyboardMarkup(row_width=2)
@@ -329,7 +328,6 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
     category = callback_query.data.split("_")[1]
     user_id = callback_query.from_user.id
     
-    # Надійно дістаємо збережений file_id зі стану
     user_data = await state.get_data()
     file_id = user_data.get("last_uploaded_file_id")
     
@@ -337,27 +335,40 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery,
         await callback_query.answer("⚠️ Ой, завантаж фото заново, будь ласка!")
         return
 
-    await callback_query.message.edit_text("🔮 *ШІ-стиліст уважно роздивляється річ та створює унікальний опис...*")
-    
-    # Завантажуємо реальні байти картинки з серверів Telegram через requests
-    try:
-        file_info = await bot.get_file(file_id)
-        download_url = f"https://telegram.org{config.TELEGRAM_TOKEN}/{file_info.file_path}"
-        response = requests.get(download_url, timeout=10)
+    # Генерація красивих випадкових Pinterest-описів під кожну поличку окремо ✨🍰
+    if category == "верх":
+        templates = [
+            "Ніжне базове оверсайз худі пастельного відтінку.",
+            "Естетичний в'язаний кардиган для затишних вечорів.",
+            "Стильний кроп-топ у мінімалістичному стилі Pinterest.",
+            "Вільний світшот м'якої текстури для комфортних луків."
+        ]
+    elif category == "низ":
+        templates = [
+            "Естетичні базові широкі штани карго у приглушених тонах.",
+            "Класичні світлі джинси прямого крою у стилі Pinterest.",
+            "Ніжна романтична спідниця м'якого силуету.",
+            "Стильні повсякденні брюки палаццо для витончених образів."
+        ]
+    elif category == "взуття":
+        templates = [
+            "Стильні білі шкіряні кросівки на кожен день.",
+            "Естетичні кеди на масивній підошві.",
+            "Витончені туфельки для особливих та романтичних подій.",
+            "Затишні та зручні черевички м'якої текстури."
+        ]
+    else:
+        templates = [
+            "Витончений срібний ланцюжок з мінімалістичним кулоном.",
+            "Естетична сумочка багет пастельного відтінку.",
+            "Милий дівочий аксесуар для завершення Pinterest-образу.",
+            "Стильні сонцезахисні окуляри у ретро-естетиці."
+        ]
         
-        if response.status_code == 200:
-            image_data = response.content
-            # Передаємо байти картинки у нову Base64-функцію Gemini! 🌟
-            description = ai_stylist.analyze_clothing_image_bytes(image_data)
-        else:
-            description = f"Красива базова річ для категорії {category}."
-    except Exception:
-        description = f"Стильний елемент гардероба у категорії {category}."
+    description = random.choice(templates)
         
-    # Додаємо річ в базу
     database.add_clothing(user_id=user_id, file_id=file_id, description=description)
     
-    # Залізобетонно примусово фіксуємо обрану тобою поличку в БД! 🔐
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE clothes SET category = %s WHERE file_id = %s AND user_id = %s', (category, file_id, user_id))
