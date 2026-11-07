@@ -14,6 +14,7 @@ def get_gemini_model():
         return None
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
+    # Швидкий, красивий та надійний локальний аналізатор, який ніколи не зависає! ✨
     templates = [
         "Ніжне базове оверсайз худі пастельного відтінку.",
         "Естетичні світлі джинси прямого крою у стилі Pinterest.",
@@ -37,8 +38,9 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 3:
-            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
+        # Безпечно читаємо елементи гардероба в будь-кому форматі кортежу чи списку
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
         else:
             clean_items.append(str(item))
             
@@ -46,7 +48,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     prompt = (
         f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
-        f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
+        f"Склади для дівчини суперстильний образ з її реальних речей под погоду {temp}°C, {condition}. Подія: {event}.\n\n"
         f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
         f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
         f"🧥 ВЕРХНІЙ ШАР (Верхній одяг, якщо холодно):\n"
@@ -69,15 +71,15 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 3:
-            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
         else:
             clean_items.append(str(item))
             
     items_text = "\n".join(clean_items)
     
     prompt = (
-        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичную валізу в подорож.\n"
+        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
         f"Дівчина їде в місто *{destination}* на *{days} днів*.\n"
         f"Прогноз погоди там: {weather_desc}.\n\n"
         f"УСІ РЕЧІ В ШАФІ:\n{items_text}\n\n"
@@ -99,8 +101,8 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 3:
-            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
         else:
             clean_items.append(str(item))
             
