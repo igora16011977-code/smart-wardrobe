@@ -117,14 +117,14 @@ async def show_wardrobe_menu(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(Text(startswith="ward_"), state="*")
 async def process_category_view(callback_query: types.CallbackQuery):
-    category = callback_query.data.split("_")[1]
+    category = callback_query.data.split("_")
     user_id = callback_query.from_user.id
     
     items = database.get_user_wardrobe(user_id, category)
     await callback_query.answer()
     
     if not items:
-        await callback_query.message.answer(f"🍦 У категорії *'{category.upper()}'* поки немає доданих речей. Надішли мені фото одягу!", parse_mode="Markdown")
+        await callback_query.message.answer(f"🍦 У категорії *'{category.upper()}'* поки немає доданих речей. Надішли мені photo одягу!", parse_mode="Markdown")
         return
         
     await callback_query.message.delete()
@@ -239,7 +239,7 @@ async def process_trip_days(message: types.Message, state: FSMContext):
     if not days_text.isdigit() or int(days_text) <= 0:
         await message.answer("💖 Напиши, будь ласка, кількість днів циферками:")
         return
-    
+        
     days = int(days_text)
     data = await state.get_data()
     destination = data['trip_city']
@@ -270,7 +270,7 @@ async def check_missing_items(message: types.Message, state: FSMContext):
     if not raw_items:
         await message.answer("🧸 Надішли мені спочатку хоча б 3-5 фотографій свого одягу, щоб я розпізнала твою улюблену кольорову палітру!")
         return
-    
+        
     await message.answer("🔎 Сканую твої речі, аналізую колірну гаму та підбираю ідеальні базові елементи... ☕️")
     recommendation = ai_stylist.generate_shopping_recommendation(raw_items)
     await message.answer(f"🛍️ *Твій Wish-list для ідеального гардероба:*\n\n{recommendation}", parse_mode="Markdown")
@@ -357,4 +357,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
