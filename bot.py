@@ -320,23 +320,32 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 # --- ПРИЙОМ НОВИХ ФОТО (ІЗ ЗАВАНТАЖЕННЯМ БАЙТІВ ДЛЯ GEMINI) ---
 
+# Знайди цей блок у своєму головному файлі та заміни на цей:
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     photo = message.photo[-1]
-    status = await message.reply("🔮 Приміряю річ на твою цифрову поличку...")
+    status = await message.reply("🔮 Приміряю річ на твою цифрову поличку... Будь ласка, зачекай ✨")
     
-    # Справжнє завантаження файлу в оперативну пам'ять за допомогою BytesIO
-    photo_file = await bot.get_file(photo.file_id)
-    photo_buffer = BytesIO()
-    await bot.download_file(photo_file.file_path, photo_buffer)
-    image_bytes = photo_buffer.getvalue()
-    
-    # Передаємо реальні байти у Gemini
-    description = ai_stylist.analyze_clothing_image(image_bytes)
-    
-    database.add_clothing(user_id=user_id, file_id=photo.file_id, description=description)
-    await status.edit_text(f"✨ Ура! Річ успішно додано!\n\nАвтоматичний аналіз: _{description}_.\nТепер вона бере участь у підборах образу! 🎀", parse_mode="Markdown")
+    try:
+        # Завантаження файлу
+        photo_file = await bot.get_file(photo.file_id)
+        photo_buffer = BytesIO()
+        await bot.download_file(photo_file.path, photo_buffer)
+        image_bytes = photo_buffer.getvalue()
+        
+        # ВИПРАВЛЕНО: Запуск синхронної генерації Gemini в окремому потоці, щоб бот не виснув!
+        description = await asyncio.to_thread(ai_stylist.analyze_clothing_image, image_bytes)
+        
+        # Запис у базу також можна винести у потік, якщо Render гальмує
+        await asyncio.to_thread(database.add_clothing, user_id, photo.file_id, description)
+        
+        await status.edit_text(
+            f"✨ Ура! Річ успішно додано!\n\nАвтоматичний аналіз: _{description}_\nТепер вона бере участь у підборах образу! 🎀", 
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        await status.edit_text(f"❌ Ой, красуне, сталася помилка при завантаженні: {e}")
 
 
 # --- ЗАПУСК БОТА ---
