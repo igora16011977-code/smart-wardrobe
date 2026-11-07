@@ -16,20 +16,30 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     """Аналізує фото одягу через безкоштовний ШІ Gemini та пише дівчачий опис 📸✨"""
     model = get_gemini_model()
     if not model or not image_bytes:
-        return "Ніжний та стильний елемент одягу для твого ідеального луку."
+        return "Ніжний та стильний елемент одягу для твого ідеального луку. ✨"
         
     prompt = (
         "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest та Coquette. "
-        "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі, срібний ланцюжок) "
-        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою з додаванням дівчачих емодзі."
+        "Подивись на це фото одягу й коротко (в одне речення до 12 слів) опиши його. "
+        "Вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі, срібний ланцюжок) "
+        "та її колір. Пиши лаконічно, витончено й українською мовою з додаванням 2-3 дівчачих емодзі. "
+        "Не використовуй зірочки (*) чи інші символи форматування."
     )
     
     try:
-        image_part = {"mime_type": "image/jpeg", "data": image_bytes}
+        # ВИПРАВЛЕНО: Змінено mime_type на image/*, щоб Gemini приймав БУДЬ-ЯКІ формати фото (png, jpeg, webp)
+        image_part = {"mime_type": "image/*", "data": image_bytes}
         response = model.generate_content([prompt, image_part])
-        return response.text.strip()
-    except Exception:
-        return "Гарна базова річ нейтрального відтінку."
+        
+        clean_text = response.text.strip().replace("*", "").replace("#", "")
+        if not clean_text:
+            return "Стильна базова річ для твоїх найкрутіших аутфітів. 🌸"
+            
+        return clean_text
+    except Exception as e:
+        # ВИПРАВЛЕНО: Тепер ми пишемо реальну помилку в логи Render, щоб знати причину збою!
+        print(f"❌ Критична помилка Gemini на цьому фото: {e}")
+        return "Ніжна базова річ, яка ідеально доповнить твою капсулу! 🎀"
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     temp = weather_info.get('temp', 12)
