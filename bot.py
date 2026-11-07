@@ -17,6 +17,7 @@ import database
 import weather
 import ai_stylist
 
+
 class SafeHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -240,7 +241,6 @@ from aiogram.dispatcher.filters.builtin import Text
 import database
 import weather
 import ai_stylist
-from main import dp, bot, main_keyboard, TripStates, UserSettingsStates, EditStates # Переконайся, що стани імпортовані
 
 # --- БЛОК 3: 🧳 ПЛАН ПОДОРОЖІ ---
 
