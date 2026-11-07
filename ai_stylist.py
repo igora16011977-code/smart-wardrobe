@@ -1,17 +1,7 @@
 import os
 import random
-import requests
 import google.generativeai as genai
-from PIL import Image
-import io
-from transformers import pipeline
 import config
-
-# Ініціалізуємо локальну нейромережу від Microsoft для миттєвого розпізнавання речей з фото
-try:
-    image_classifier = pipeline("image-classification", model="microsoft/resnet-50")
-except Exception:
-    image_classifier = None
 
 def get_gemini_model():
     """Надійне підключення до штучного інтелекту Google 🔑"""
@@ -24,39 +14,40 @@ def get_gemini_model():
     except Exception:
         return None
 
-def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
-    """Професійне локальне розпізнавання тканини та типу одягу без помилок API! 📸✨"""
-    if not image_bytes:
-        return "Естетичний елемент одягу у стилі Pinterest"
-        
+def generate_unique_description(category: str) -> str:
+    """Генерує мегаестетичний і унікальний опис речі через Gemini на основі обраної полички! 🌸🍰"""
+    model = get_gemini_model()
+    
+    prompt = (
+        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
+        f"Користувачка додала річ у категорію '{category.upper()}'. "
+        f"Придумай для цієї речі один короткий, дуже милий та естетичний опис (в одне речення) українською мовою. "
+        f"Опис має ідеально підходити під категорію '{category}'. "
+        f"Наприклад, якщо це верх: придумай опис про худі, світшот, блузу чи кардиган. Якщо низ: про джинси, брюки палаццо чи спідничку. "
+        f"Якщо взуття: про кросівки чи туфельки. Якщо аксесуари: про сумочку чи ланцюжок. "
+        f"Використовуй красиві слова: пастельний, оверсайз, мінімалістичний, Pinterest-естетика. Пиши тільки ОДИН варіант опису, без зайвих слів."
+    )
+    
     try:
-        # Відкриваємо картинку через PIL
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        
-        if image_classifier:
-            # Нейромережа сканує силует
-            predictions = image_classifier(image)
-            labels = [p['label'].lower() for p in predictions]
-            top_label = labels[0]
-            
-            # Розумне сортування за силуетами на українську мову
-            if any(w in top_label for w in ["jean", "trouser", "pants", "pant", "skirt", "shorts"]):
-                if "jean" in top_label or "denim" in top_label:
-                    return "Естетичні базові джинси прямого чи широкого крою у стилі Pinterest."
-                return "Стильні повсякденні штани брюки палаццо нейтрального відтінку."
-            elif any(w in top_label for w in ["jersey", "sweatshirt", "sweater", "shirt", "t-shirt", "coat", "jacket"]):
-                if "jacket" in top_label or "coat" in top_label:
-                    return "Теплий та стильний верхній одяг м'якого силуету для затишних образів."
-                return "Затишне оверсайз худі або базовий світшот м'якої текстури."
-            elif any(w in top_label for w in ["shoe", "sneaker", "boot", "sandal"]):
-                return "Стильні повсякденні кросівки або естетичні кеди на кожен день."
-            elif any(w in top_label for w in ["bag", "purse", "wallet", "necklace", "sunglasses", "hat"]):
-                return "Витончений дівочий аксесуар або сумочка для завершення образу."
-                
-        # Розумний дівочий підстраховщик, якщо силует занадто абстрактний
-        return "Красива базова річ у пастельних відтінках для твоїх найкращих аутфітів."
+        if model:
+            response = model.generate_content(prompt)
+            return response.text.strip().replace('"', '').replace('*', '')
     except Exception:
+        pass
+        
+    # Затишні підстраховки, якщо Google на мить задумається
+    if category == "верх":
+        return "Ніжне базове оверсайз худі або топ пастельного відтінку."
+    elif category == "низ":
         return "Естетичні базові штани джинси прямого крою у стилі Pinterest."
+    elif category == "взуття":
+        return "Стильні повсякденні кросівки або естетичне взуття на кожен день."
+    else:
+        return "Витончений аксесуар або сумочка для завершення образу."
+
+def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
+    """Стара функція, залишаємо для сумісності з іншими блоками."""
+    return "Красива базова річ у твоєму гардеробі."
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     temp = weather_info.get('temp', 12)
@@ -106,7 +97,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
     items_text = "\n".join(clean_items)
     
     prompt = (
-        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
+        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну aesthetic валізу в подорож.\n"
         f"Дівчина їде в місто *{destination}* на *{days} днів*.\n"
         f"Прогноз погоди там: {weather_desc}.\n\n"
         f"УСІ РЕЧІ В ШАФІ:\n{items_text}\n\n"
@@ -123,7 +114,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
             return response.text.strip()
         except Exception as e:
             return f"❌ Ой, не вдалося зібрати валізу: {e}"
-    return "Помилка ініціалізації ШІ-стиліста подорожей."
+    return "Помилка ініціализации ШІ-стиліста подорожей."
 
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
