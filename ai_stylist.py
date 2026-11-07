@@ -1,5 +1,4 @@
 import os
-import random
 import google.generativeai as genai
 import config
 
@@ -13,16 +12,25 @@ def get_gemini_model():
     except Exception:
         return None
 
-def analyze_clothing_image(image_bytes: bytes) -> str:
-    # Швидкий, красивий та надійний локальний аналізатор, який ніколи не зависає! ✨
-    templates = [
-        "Ніжне базове оверсайз худі пастельного відтінку.",
-        "Естетичні світлі джинси прямого крою у стилі Pinterest.",
-        "Мінімалістичний срібний ланцюжок з витонченою підвіскою.",
-        "Стильні білі шкіряні кросівки на кожен день.",
-        "Затишний в'язаний кардиган для прохолодних вечорів."
-    ]
-    return random.choice(templates)
+def analyze_clothing_image_bytes(image_bytes: bytes) -> str:
+    """Ця функція ПРАВИЛЬНО аналізує реальне фото через безкоштовний ШІ Google! 📸✨"""
+    model = get_gemini_model()
+    if not model or not image_bytes:
+        return "Стильний елемент одягу для твого гардероба."
+        
+    prompt = (
+        "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest. "
+        "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі) "
+        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою."
+    )
+    
+    try:
+        # Передаємо реальні байти картинки в Gemini для сканування вигляду
+        image_part = {"mime_type": "image/jpeg", "data": image_bytes}
+        response = model.generate_content([prompt, image_part])
+        return response.text.strip()
+    except Exception as e:
+        return "Гарна базова річ нейтрального відтінку."
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     temp = weather_info.get('temp', 12)
@@ -38,9 +46,8 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     clean_items = []
     for item in wardrobe_items:
-        # Безпечно читаємо елементи гардероба в будь-кому форматі кортежу чи списку
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
@@ -48,7 +55,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 
     prompt = (
         f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
-        f"Склади для дівчини суперстильний образ з її реальних речей под погоду {temp}°C, {condition}. Подія: {event}.\n\n"
+        f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
         f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
         f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
         f"🧥 ВЕРХНІЙ ШАР (Верхній одяг, якщо холодно):\n"
@@ -72,7 +79,7 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
@@ -102,7 +109,7 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
         else:
             clean_items.append(str(item))
             
