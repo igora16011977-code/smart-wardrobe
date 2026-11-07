@@ -1,6 +1,8 @@
 aiogram==2.25.1
 python-dotenv
 requests
-openai
 psycopg2-binary==2.9.9
 google-generativeai
+Pillow
+transformers
+torch==2.2.2 --extra-index-url https://pytorch.org
