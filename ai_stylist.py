@@ -33,7 +33,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
+            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
         else:
             clean_items.append(str(item))
             
@@ -46,7 +46,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
         f"🧥 ВЕРХНІЙ ШАР (Верхній одяг, якщо холодно):\n"
         f"👚 БАЗОВИЙ ВЕРХ (Худі, светрик, кардиган чи топ):\n"
-        f"👖 НИЗ (Джинси, спідничка, shortи чи брюки):\n"
+        f"👖 НИЗ (Джинси, спідничка, шорти чи брюки):\n"
         f"👟 ВЗУТТЯ (Кросівки, туфельки тощо):\n"
         f"👜 АКСЕСУАРИ (Прикраси, сумочка):\n\n"
         f"💕 Чому цей образ ідеальний: (Напиши комплімент дівчині та поясни, чому ці шари будуть комфортні для {temp}°C та події '{event}')"
@@ -59,13 +59,13 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
             return f"{weather_header}{response.text.strip()}"
         except Exception as e:
             return f"{weather_header}❌ Ой, красуне, ШІ-подружка припудрює носик. Спробуй ще раз! ({e})"
-    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай більше фото речей у свій гардероб!"
+    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай більше photo речей у свій гардероб!"
 
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
+            clean_items.append(f"ID {item}: {item} (Категорія: {item})")
         else:
             clean_items.append(str(item))
             
@@ -95,7 +95,7 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
         if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"Річ: {item[1]} (Категорія: {item[3]})")
+            clean_items.append(f"Річ: {item} (Категорія: {item})")
         else:
             clean_items.append(str(item))
             
@@ -116,4 +116,4 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
             return response.text.strip()
         except Exception as e:
             return f"❌ Не вдалося проаналізувати гардероб: {e}"
-    return "Додайте більше фото вашого одягу!"
+    return "Додайте більше photo вашого одягу!"
