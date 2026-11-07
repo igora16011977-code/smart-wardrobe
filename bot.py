@@ -294,18 +294,19 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 
 # --- ПРИЙОМ НОВИХ ФОТО З ОРГАНІЗАЦІЄЮ ПОЛИЧОК КНОПКАМИ ---
-
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
-    photo = message.photo[-1]
+    # Обов'язково беремо НАЙБІЛЬШИЙ розмір фото зі списку [-1]
+    last_photo = message.photo[-1]
+    f_id = last_photo.file_id
     
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{photo.file_id}"),
-        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data=f"setcat_низ_{photo.file_id}"),
-        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data=f"setcat_взуття_{photo.file_id}"),
-        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data=f"setcat_аксесуари_{photo.file_id}")
+        InlineKeyboardButton("👚 Верх (Худі, куртка, топ)", callback_data=f"setcat_верх_{f_id}"),
+        InlineKeyboardButton("👖 Низ (Штани, джинси, спідниця)", callback_data=f"setcat_низ_{f_id}"),
+        InlineKeyboardButton("👟 Взуття (Кросівки, туфлі)", callback_data=f"setcat_взуття_{f_id}"),
+        InlineKeyboardButton("👜 Аксесуари (Сумочка, прикраси)", callback_data=f"setcat_аксесуари_{f_id}")
     )
     
     await message.reply(
@@ -317,7 +318,10 @@ async def handle_clothing_photo(message: types.Message):
 
 @dp.callback_query_handler(Text(startswith="setcat_"), state="*")
 async def save_clothing_with_exact_category(callback_query: types.CallbackQuery):
-    _, category, file_id = callback_query.data.split("_")
+    # Акуратно розділяємо дані за нижнім підкресленням
+    raw_data = callback_query.data.split("_")
+    category = raw_data[1]
+    file_id = raw_data[2]
     user_id = callback_query.from_user.id
     
     if category == "верх":
@@ -344,6 +348,19 @@ async def save_clothing_with_exact_category(callback_query: types.CallbackQuery)
         f"Тепер вона точно братиме участь у твоїх естетичних підборах образу! 🎀",
         parse_mode="Markdown"
     )
+
+
+# --- ГОЛОВНИЙ СТАРТ БОТА ---
+
+async def main():
+    database.init_db()
+    try:
+        await dp.start_polling()
+    finally:
+        await bot.close()
+
+if __name__ == '__main__':
+    asyncio.run(main())
 
 
 # --- ГОЛОВНИЙ СТАРТ БОТА ---
