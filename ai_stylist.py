@@ -4,13 +4,11 @@ import google.generativeai as genai
 import config
 
 def get_gemini_model():
-    # Надійно беремо безкоштовний ключ розробника Google
     api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
     if not api_key:
         return None
     try:
         genai.configure(api_key=api_key)
-        # Вказуємо найновішу офіційну та стабільну безкоштовну модель
         return genai.GenerativeModel('gemini-3.8-flash')
     except Exception:
         return None
@@ -37,11 +35,10 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"💨 Вітерець: `{wind} м/с` | 💧 Вологість: `{humidity}%` \n\n"
     )
 
-    # Виправляємо обробку списку речей, щоб ШІ бачив усе красиво
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+        if isinstance(item, (tuple, list)) and len(item) >= 3:
+            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
         else:
             clean_items.append(str(item))
             
@@ -72,15 +69,15 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+        if isinstance(item, (tuple, list)) and len(item) >= 3:
+            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
         else:
             clean_items.append(str(item))
             
     items_text = "\n".join(clean_items)
     
     prompt = (
-        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
+        f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичную валізу в подорож.\n"
         f"Дівчина їде в місто *{destination}* на *{days} днів*.\n"
         f"Прогноз погоди там: {weather_desc}.\n\n"
         f"УСІ РЕЧІ В ШАФІ:\n{items_text}\n\n"
@@ -102,8 +99,8 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
     clean_items = []
     for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 2:
-            clean_items.append(f"ID {item[2]}: {item[1]}")
+        if isinstance(item, (tuple, list)) and len(item) >= 3:
+            clean_items.append(f"ID {item[2]} ({item[3]}): {item[1]}")
         else:
             clean_items.append(str(item))
             
