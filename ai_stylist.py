@@ -4,14 +4,14 @@ import google.generativeai as genai
 import config
 
 def get_gemini_model():
-    # Беремо безкоштовний ключ Google із конфігу чи системи
+    # Надійно беремо безкоштовний ключ розробника Google
     api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
     if not api_key:
         return None
     try:
         genai.configure(api_key=api_key)
-        # Використовуємо супершвидку та безкоштовну модель від Google
-        return genai.GenerativeModel('gemini-pro')
+        # Вказуємо найновішу офіційну та стабільну безкоштовну модель
+        return genai.GenerativeModel('gemini-2.5-flash')
     except Exception:
         return None
 
@@ -37,7 +37,15 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"💨 Вітерець: `{wind} м/с` | 💧 Вологість: `{humidity}%` \n\n"
     )
 
-    items_text = "\n".join([f"- ID {item[2]} (Поличка: {item[3]}): {item[1]}" for item in wardrobe_items if isinstance(item, (tuple, list))])
+    # Виправляємо обробку списку речей, щоб ШІ бачив усе красиво
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
 
     prompt = (
         f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
@@ -62,7 +70,14 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     return f"{weather_header}👕 Футболка + 👖 Джинси. Додай фото речей, щоб увімкнути магію!"
 
 def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
-    items_text = "\n".join([f"- ID {item[2]} ({item[3]}): {item[1]}" for item in wardrobe_items if isinstance(item, (tuple, list))])
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
     
     prompt = (
         f"Ти — найкраща подружка-стиліст, яка допомагає зібрати ідеальну естетичну валізу в подорож.\n"
@@ -85,7 +100,14 @@ def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination
     return "Помилка ініціалізації ШІ-стиліста подорожей."
 
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
-    items_text = "\n".join([f"- {item[1]} (Категорія: {item[3]})" for item in wardrobe_items if isinstance(item, (tuple, list))])
+    clean_items = []
+    for item in wardrobe_items:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            clean_items.append(f"ID {item[2]}: {item[1]}")
+        else:
+            clean_items.append(str(item))
+            
+    items_text = "\n".join(clean_items)
     
     prompt = (
         f"Ти — професійна дівчина-стиліст. Проаналізуй поточну шафу користувачки:\n{items_text}\n\n"
