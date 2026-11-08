@@ -8,24 +8,17 @@ def get_gemini_model():
         return None
     try:
         genai.configure(api_key=api_key)
-        # Стабільна безкоштовна модель
-        return genai.GenerativeModel('gemini-2.5-flash')
+        # ПОВЕРТАЄМО НАЙНОВІШУ МОДЕЛЬ 2026 РОКУ
+        return genai.GenerativeModel('gemini-3.8-flash')
     except Exception:
         return None
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Діагностична версія функції 🔎✨"""
+    """Аналізує фото одягу через безкоштовний ШІ Gemini та пише дівчачий опис 📸✨"""
     model = get_gemini_model()
-    
-    # Дізнаємося, який саме ключ зараз бачить бот з config або оточення
-    current_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
-    
-    # Покажемо перші 6 символів ключа для безпеки, або що він пустий
-    key_preview = f"{current_key[:6]}..." if current_key else "КЛЮЧ ПОРОЖНІЙ ❌"
-    
-    if not current_key:
-        return f"Ой! Помилка: {key_preview}. Перевір вкладку Environment на Render!"
-
+    if not model or not image_bytes:
+        return "Ніжний та стильний елемент одягу для твого ідеального луку."
+        
     prompt = (
         "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest та Coquette. "
         "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі, срібний ланцюжок) "
@@ -35,14 +28,13 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     try:
         image_part = {"mime_type": "image/jpeg", "data": image_bytes}
         response = model.generate_content([prompt, image_part])
-        
-        if response.text and response.text.strip():
-            return response.text.strip()
-            
-        return "Чарівна річ, але ШІ повернув порожню відповідь. 🦄"
+        return response.text.strip()
     except Exception as e:
-        # ЯКЩО СТАЛАСЯ ПОМИЛКА — БОТ НАПИШЕ ЇЇ ПРЯМО В ТЕЛЕГРАМ!
-        return f"🚨 Помилка Gemini API: {str(e)} | Використовується ключ: {key_preview}"
+        print(f"Помилка Gemini API: {e}")
+        return "Неймовірно мила та стильна знахідка для твоєї шафи! 🎀🌸"
+
+# Решта функцій (generate_outfit_recommendation, generate_trip_itinerary, generate_shopping_recommendation) залишаються без змін
+
 
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
