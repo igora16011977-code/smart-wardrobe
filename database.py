@@ -19,16 +19,15 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # ХИТРІСТЬ: Перейменували таблиці на user_settings_v2 та clothes_v2, 
-    # щоб вони створилися з нуля без очищення бази на Render!
+    # ДОДАНО PRIMARY KEY ДЛЯ СУМІСНОСТІ З POSTGRESQL НА RENDER
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_settings_v2 (
+        CREATE TABLE IF NOT EXISTS user_settings (
             user_id BIGINT PRIMARY KEY,
             city TEXT NOT NULL DEFAULT 'Lviv'
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS clothes_v2 (
+        CREATE TABLE IF NOT EXISTS clothes (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
             file_id TEXT NOT NULL,
@@ -58,7 +57,7 @@ def add_clothing(user_id: int, file_id: str, description: str):
     cursor = conn.cursor()
     category = _detect_category(description)
     cursor.execute('''
-        INSERT INTO clothes_v2 (user_id, file_id, description, category)
+        INSERT INTO clothes (user_id, file_id, description, category)
         VALUES (%s, %s, %s, %s)
     ''', (user_id, file_id, description, category))
     conn.commit()
@@ -69,9 +68,9 @@ def get_user_wardrobe(user_id: int, category: str = "все"):
     conn = get_db_connection()
     cursor = conn.cursor()
     if category == "все":
-        cursor.execute('SELECT file_id, description, id, category FROM clothes_v2 WHERE user_id = %s ORDER BY id', (user_id,))
+        cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s ORDER BY id', (user_id,))
     else:
-        cursor.execute('SELECT file_id, description, id, category FROM clothes_v2 WHERE user_id = %s AND category = %s ORDER BY id', (user_id, category.lower()))
+        cursor.execute('SELECT file_id, description, id, category FROM clothes WHERE user_id = %s AND category = %s ORDER BY id', (user_id, category.lower()))
     items = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -80,7 +79,7 @@ def get_user_wardrobe(user_id: int, category: str = "все"):
 def delete_clothing(item_id: int, user_id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM clothes_v2 WHERE id = %s AND user_id = %s', (item_id, user_id))
+    cursor.execute('DELETE FROM clothes WHERE id = %s AND user_id = %s', (item_id, user_id))
     conn.commit()
     cursor.close()
     conn.close()
@@ -89,7 +88,7 @@ def update_clothing_description(item_id: int, user_id: int, new_desc: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     new_category = _detect_category(new_desc)
-    cursor.execute('UPDATE clothes_v2 SET description = %s, category = %s WHERE id = %s AND user_id = %s', (new_desc, new_category, item_id, user_id))
+    cursor.execute('UPDATE clothes SET description = %s, category = %s WHERE id = %s AND user_id = %s', (new_desc, new_category, item_id, user_id))
     conn.commit()
     cursor.close()
     conn.close()
@@ -97,7 +96,7 @@ def update_clothing_description(item_id: int, user_id: int, new_desc: str):
 def get_user_city(user_id: int) -> str:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT city FROM user_settings_v2 WHERE user_id = %s', (user_id,))
+    cursor.execute('SELECT city FROM user_settings WHERE user_id = %s', (user_id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -107,7 +106,7 @@ def save_user_city(user_id: int, city: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO user_settings_v2 (user_id, city) VALUES (%s, %s)
+        INSERT INTO user_settings (user_id, city) VALUES (%s, %s)
         ON CONFLICT(user_id) DO UPDATE SET city = EXCLUDED.city
     ''', (user_id, city))
     conn.commit()
