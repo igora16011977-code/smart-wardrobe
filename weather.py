@@ -13,7 +13,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # ВИПРАВЛЕНО НА ІНДЕКС [0]
+                "description": data["weather"][0]["description"],
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -33,11 +33,11 @@ def get_weather_forecast(city: str) -> dict:
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
-                first_forecast = data["list"][0]  # ВИПРАВЛЕНО НА ІНДЕКС [0]
+                first_forecast = data["list"][0]
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # ВИПРАВЛЕНО НА ІНДЕКС [0]
+                    "description": first_forecast["weather"][0]["description"],
                     "city": data["city"]["name"]
                 }
     except Exception as e:
