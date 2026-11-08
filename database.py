@@ -36,6 +36,14 @@ def init_db():
         )
     ''')
     conn.commit()
+
+    # АВТОМАТИЧНО ВИДАЛЯЄМО РЕЧІ, ЯКІ БУЛИ ДОДАНІ СЬОГОДНІ ПІД ЧАС ТЕСТІВ
+    try:
+        cursor.execute("DELETE FROM clothes WHERE description LIKE '%Шалено стильна річ%' OR description LIKE '%Неймовірно мила%';")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
     cursor.close()
     conn.close()
 
