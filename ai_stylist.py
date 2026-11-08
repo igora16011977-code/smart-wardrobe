@@ -1,6 +1,7 @@
 import os
 import google.generativeai as genai
 import config
+import random
 
 def get_gemini_model():
     api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
@@ -8,16 +9,26 @@ def get_gemini_model():
         return None
     try:
         genai.configure(api_key=api_key)
-        # 100% РОБОЧА МОДЕЛЬ GEMINI З СУЧАСНОГО API
+        # 100% АКТУАЛЬНА І РОБОЧА МОДЕЛЯ GOOGLE GEMINI НА СЬОГОДНІ
         return genai.GenerativeModel('gemini-1.5-flash')
-    except Exception:
+    except Exception as e:
+        print(f"Помилка конфігурації Gemini: {e}")
         return None
 
 def analyze_clothing_image(image_bytes: bytes) -> str:
     """Аналізує фото одягу через безкоштовний ШІ Gemini та пише дівчачий опис 📸✨"""
     model = get_gemini_model()
+    
+    # Список мега-крутих Pinterest-описів на випадок, якщо API завантажене
+    backup_descriptions = [
+        "Неймовірно мила та стильна знахідка для твоєї шафи! ідеально підійде для затишного луку 🎀🌸",
+        "Просто естетика Pinterest у чистому вигляді! Ця річ точно стане твоєю улюбленою 🧸🍰",
+        "Витончений елемент гардероба у стилі Coquette для найніжніших образів ✨🩰",
+        "Шалено стильна річ, яка додасть твоему аутфіту особливого французького шарму 🕊️ суперово поєднується з базою!"
+    ]
+    
     if not model or not image_bytes:
-        return "Ніжний та стильний елемент одягу для твого ідеального луку."
+        return random.choice(backup_descriptions)
         
     prompt = (
         "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest та Coquette. "
@@ -31,7 +42,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
         return response.text.strip()
     except Exception as e:
         print(f"Помилка Gemini API: {e}")
-        return "Неймовірно мила та стильна знахідка для твоєї шафи! 🎀🌸"
+        return random.choice(backup_descriptions)
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     """Генерує пошаровий образ на сьогодні під погоду та подію 🌤️👗"""
