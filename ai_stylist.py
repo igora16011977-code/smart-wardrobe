@@ -26,24 +26,24 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     )
     
     try:
-        # НАДІЙНИЙ ФОРМАТ: передаємо байти напряму через правильну структуру GenerativeAI
+        # Абсолютно сумісний формат передачі blob-даних для нових версій SDK
         image_part = {
-            "mime_type": "image/jpeg", 
+            "mime_type": "image/jpeg",
             "data": image_bytes
         }
         
-        # Додатково вказуємо конфігурацію, щоб ШІ точно відповів текстом
+        # Викликаємо генерацію контенту
         response = model.generate_content([prompt, image_part])
         
-        # Якщо ШІ повернув порожній текст, використовуємо дівочу заглушку замість нудної базової
-        if not response.text or not response.text.strip():
-            return "Чарівна та дуже естетична річ для твого найкращого аутфіту! 🦄💗"
+        if response.text and response.text.strip():
+            return response.text.strip()
             
-        return response.text.strip()
+        return "Чарівна та дуже естетична річ для твого найкращото аутфіту! 🦄💗"
     except Exception as e:
-        # Це виведе точну помилку в логи Render, щоб ми бачили її характер
-        print(f"🚨 Помилка Gemini API: {e}")
+        # Це виведе конкретну помилку у вкладку Logs на Render, щоб ми її бачили
+        print(f"🚨 Критична помилка Gemini API: {e}")
         return "Неймовірно мила та стильна знахідка для твоєї шафи! 🎀🌸"
+
 
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
