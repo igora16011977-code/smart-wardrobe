@@ -19,7 +19,8 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # ДОДАНО PRIMARY KEY ДЛЯ СУМІСНОСТІ З POSTGRESQL НА RENDER
+    # ВИПРАВЛЕНО: Залишили оригінальні таблиці (user_settings та clothes),
+    # але додали PRIMARY KEY, щоб хмара PostgreSQL на Render працювала стабільно і без багів!
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_settings (
             user_id BIGINT PRIMARY KEY,
