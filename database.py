@@ -19,6 +19,7 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # ДОДАНО PRIMARY KEY ДЛЯ СУМІСНОСТІ З POSTGRESQL НА RENDER
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_settings (
             user_id BIGINT PRIMARY KEY,
