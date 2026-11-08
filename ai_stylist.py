@@ -8,8 +8,8 @@ def get_gemini_model():
         return None
     try:
         genai.configure(api_key=api_key)
-        # ПОВЕРТАЄМО НАЙНОВІШУ МОДЕЛЬ 2026 РОКУ
-        return genai.GenerativeModel('gemini-3.8-flash')
+        # 100% РОБОЧА МОДЕЛЬ GEMINI З СУЧАСНОГО API
+        return genai.GenerativeModel('gemini-1.5-flash')
     except Exception:
         return None
 
@@ -32,10 +32,6 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     except Exception as e:
         print(f"Помилка Gemini API: {e}")
         return "Неймовірно мила та стильна знахідка для твоєї шафи! 🎀🌸"
-
-# Решта функцій (generate_outfit_recommendation, generate_trip_itinerary, generate_shopping_recommendation) залишаються без змін
-
-
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
     """Генерує пошаровий образ на сьогодні під погоду та подію 🌤️👗"""
