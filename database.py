@@ -6,7 +6,7 @@ DB_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
     if not DB_URL:
-        raise ValueError("💖 Ой! Змінна DATABASE_URL порожня. Налаштуй базу даних на Render чи локально!")
+        raise ValueError("Змінна DATABASE_URL порожня!")
     url = urlparse.urlparse(DB_URL)
     return psycopg2.connect(
         dbname=url.path[1:],
@@ -19,23 +19,12 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Створюємо таблицю налаштувань користувача
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_settings (
-            user_id BIGINT,
+            user_id BIGINT PRIMARY KEY,
             city TEXT NOT NULL DEFAULT 'Lviv'
         )
     ''')
-    
-    # МАГІЯ ТУТ: Автоматично додаємо унікальний ключ до старої таблиці, 
-    # щоб опис більше НІКОЛИ не ламався і не клинив на Render!
-    try:
-        cursor.execute('ALTER TABLE user_settings ADD CONSTRAINT user_settings_pk PRIMARY KEY (user_id);')
-        conn.commit()
-    except Exception:
-        conn.rollback() # Якщо ключ уже є, просто йдемо далі
-        
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clothes (
             id SERIAL PRIMARY KEY,
@@ -63,16 +52,20 @@ def _detect_category(description: str) -> str:
     return "верх"
 
 def add_clothing(user_id: int, file_id: str, description: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    category = _detect_category(description)
-    cursor.execute('''
-        INSERT INTO clothes (user_id, file_id, description, category)
-        VALUES (%s, %s, %s, %s)
-    ''', (user_id, file_id, description, category))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        category = _detect_category(description)
+        cursor.execute('''
+            INSERT INTO clothes (user_id, file_id, description, category)
+            VALUES (%s, %s, %s, %s)
+        ''', (user_id, file_id, description, category))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Помилка бази даних: {e}")
+        pass
 
 def get_user_wardrobe(user_id: int, category: str = "все"):
     conn = get_db_connection()
@@ -104,21 +97,27 @@ def update_clothing_description(item_id: int, user_id: int, new_desc: str):
     conn.close()
 
 def get_user_city(user_id: int) -> str:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT city FROM user_settings WHERE user_id = %s', (user_id,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return row[0] if row else "Lviv"
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT city FROM user_settings WHERE user_id = %s', (user_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return row[0] if row else "Lviv"
+    except Exception:
+        return "Lviv"
 
 def save_user_city(user_id: int, city: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO user_settings (user_id, city) VALUES (%s, %s)
-        ON CONFLICT(user_id) DO UPDATE SET city = EXCLUDED.city
-    ''', (user_id, city))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO user_settings (user_id, city) VALUES (%s, %s)
+            ON CONFLICT(user_id) DO UPDATE SET city = EXCLUDED.city
+        ''', (user_id, city))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass
