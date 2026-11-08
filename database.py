@@ -19,14 +19,23 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # ВИПРАВЛЕНО: Залишили оригінальні таблиці (user_settings та clothes),
-    # але додали PRIMARY KEY, щоб хмара PostgreSQL на Render працювала стабільно і без багів!
+    
+    # Створюємо таблицю налаштувань користувача
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_settings (
-            user_id BIGINT PRIMARY KEY,
+            user_id BIGINT,
             city TEXT NOT NULL DEFAULT 'Lviv'
         )
     ''')
+    
+    # МАГІЯ ТУТ: Автоматично додаємо унікальний ключ до старої таблиці, 
+    # щоб опис більше НІКОЛИ не ламався і не клинив на Render!
+    try:
+        cursor.execute('ALTER TABLE user_settings ADD CONSTRAINT user_settings_pk PRIMARY KEY (user_id);')
+        conn.commit()
+    except Exception:
+        conn.rollback() # Якщо ключ уже є, просто йдемо далі
+        
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clothes (
             id SERIAL PRIMARY KEY,
