@@ -5,14 +5,14 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # Абсолютно чистий базовий URL без підстановок всередині рядка
+    # Чистий базовий URL без фігурних дужок всередині рядка
     url = "https://openweathermap.org"
     
-    # Передаємо параметри окремим словником — це унеможливлює помилки синтаксису
+    # Передаємо параметри окремим словником — це унеможливлює помилки інтерполяції рядків
     params = {
         "q": city,
         "appid": api_key,
-        "units": metric,
+        "units": "metric",
         "lang": "uk"
     }
     
@@ -23,7 +23,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # Правильний індекс масиву
+                "description": data["weather"][0]["description"],  # Додано індекс елемента списку
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -33,13 +33,13 @@ def get_weather(city: str) -> dict:
             return {"temp": 99, "feels_like": 99, "description": f"Помилка API (Код {response.status_code})", "city": city}
     except Exception as e:
         print(f"Помилка OpenWeather API: {e}")
-        return {"temp": 99, "feels_like": 99, "description": f"Помилка парсингу: {str(e)[:30]}", "city": city}
+        return {"temp": 99, "feels_like": 99, "description": f"Помилка в коді: {str(e)[:30]}", "city": city}
 
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # Чистий базовий URL для прогнозу
+    # Чистий базовий URL прогнозу
     url = "https://openweathermap.org"
     
     params = {
@@ -54,11 +54,11 @@ def get_weather_forecast(city: str) -> dict:
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
-                first_forecast = data["list"][0]  # Правильний індекс елемента прогнозу
+                first_forecast = data["list"][0]  # Додано індекс елемента прогнозу
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # Правильний індекс масиву
+                    "description": first_forecast["weather"][0]["description"],  # Додано індекс елемента списку
                     "city": data["city"]["name"]
                 }
         else:
