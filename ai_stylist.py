@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import os
 import random
 import openai
@@ -24,7 +23,7 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
     return random.choice(templates)
 
 def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
-<<<<<<< HEAD
+
     temp = weather_info.get('temp', 12)
     condition = weather_info.get('description', 'хмарно з проясненнями')
     wind = weather_info.get('wind', {}).get('speed', 3.5)
@@ -49,7 +48,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"👟 ВЗУТТЯ (Кросівки, туфельки тощо):\n"
         f"👜 АКСЕСУАРИ (Прикраси, сумочка):\n\n"
         f"💕 Чому цей образ ідеальний: (Напиши комплімент дівчині та поясни, чому ці шари будуть комфортні для {temp}°C та події '{event}')"
-=======
+
     """
     ВІДНОВЛЕНО: Генерація щоденного пошарового образу.
     """
@@ -85,15 +84,15 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
         f"💍 Прикраси/Аксесуари: ...\n"
         f"✨ *Обґрунтування образу:* [1-2 речення чому це комфортно під погоду]\n\n"
         f"ОДЯГНИ: [напиши через кому id або точні назви обраних речей]"
->>>>>>> parent of 43040b8 (update code)
+
     )
 
     client = get_openai_client()
     if client:
         try:
-<<<<<<< HEAD
+
             response = client.chat.completions.create(
-=======
+
             response = client_openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
@@ -165,7 +164,6 @@ def generate_trip_itinerary(forecast_data: dict, wardrobe_items: list, event: st
     if client_openai:
         try:
             response = client_openai.chat.completions.create(
->>>>>>> parent of 43040b8 (update code)
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.4,
@@ -228,125 +226,3 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
         except Exception as e:
             return f"❌ Не вдалося проаналізувати гардероб: {e}"
     return "Додайте більше фото вашого одягу!"
-=======
-import os
-import google.generativeai as genai
-import config
-
-def get_gemini_model():
-    api_key = getattr(config, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
-    if not api_key:
-        return None
-    try:
-        genai.configure(api_key=api_key)
-        return genai.GenerativeModel('gemini-1.5-flash')
-    except Exception:
-        return None
-
-def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Аналізує фото одягу через безкоштовний ШІ Gemini та пише дівчачий опис 📸✨"""
-    model = get_gemini_model()
-    if not model or not image_bytes:
-        return "Ніжний та стильний елемент одягу для твого ідеального луку."
-        
-    prompt = (
-        "Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Pinterest та Coquette. "
-        "Подивись на це фото одягу й коротко (в одне речення) опиши його: вкажи точний тип речі (наприклад: чорні класичні брюки, сині широкі джинси, рожеве худі, срібний ланцюжок) "
-        "та її колір/стиль. Пиши лаконічно, витончено й українською мовою з додаванням дівчачих емодзі."
-    )
-    
-    try:
-        image_part = {"mime_type": "image/jpeg", "data": image_bytes}
-        response = model.generate_content([prompt, image_part])
-        return response.text.strip()
-    except Exception as e:
-        print(f"Помилка Gemini API: {e}")
-        return "Неймовірно мила та стильна знахідка для твоєї шафи! 🎀🌸"
-
-def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, event: str) -> str:
-    """Генерує пошаровий образ на сьогодні під погоду та подію 🌤️👗"""
-    temp = weather_info.get('temp', 12)
-    condition = weather_info.get('description', 'хмарно з проясненнями')
-    wind = weather_info.get('wind', {}).get('speed', 3.5)
-    humidity = weather_info.get('humidity', 70)
-    
-    weather_header = (
-        f"🌸 **Погодний щоденник:**\n"
-        f"🌡️ За вікном зараз: `{temp}°C` ({condition})\n"
-        f"💨 Вітерець: `{wind} м/с` | 💧 Вологість: `{humidity}%` \n\n"
-    )
-
-    clean_items = []
-    for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 4:
-            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
-        else:
-            clean_items.append(str(item))
-            
-    items_text = "\n".join(clean_items)
-
-    prompt = (
-        f"Ти — найкраща подружка-стиліст, шалено закохана в моду та естетику Coquette/Pinterest. "
-        f"Склади для дівчини суперстильний образ з її реальних речей під погоду {temp}°C, {condition}. Подія: {event}.\n\n"
-        f"ОСЬ РЕЧІ З ЇЇ ШАФИ:\n{items_text}\n\n"
-        f"ОБОВ'ЯЗКОВО сформуй відповідь дуже красиво, мімімішно, з купою дівочих емодзі за такою структурою:\n"
-        f"🧥 ВЕРХНІЙ ШАР:\n👚 БАЗОВИЙ ВЕРХ:\n👖 НИЗ:\n👟 ВЗУТТЯ:\n👜 АКСЕСУАРИ:\n\n"
-        f"💕 Чому цей образ ідеальний: (Напиши комплімент дівчині та поясни, чому ці шари будуть комфортні для {temp}°C та події '{event}')"
-    )
-
-    model = get_gemini_model()
-    if model:
-        try:
-            response = model.generate_content(prompt)
-            return f"{weather_header}{response.text.strip()}"
-        except Exception as e:
-            return f"{weather_header}❌ Ой, красуне, ШІ-подружка припудрює носик. Спробуй ще раз! ({e})"
-    return f"{weather_header}👕 Футболка + 👖 Джинси. Додай фото речей, щоб увімкнути магію!"
-
-def generate_trip_itinerary(weather_desc: str, wardrobe_items: list, destination: str, days: int) -> str:
-    clean_items = []
-    for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 4:
-            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
-        else:
-            clean_items.append(str(item))
-    items_text = "\n".join(clean_items)
-    
-    prompt = (
-        f"Ти — найкраща подружка-стиліст. Дівчина їде в місто *{destination}* на *{days} днів*.\n"
-        f"Прогноз погоди там: {weather_desc}.\n\nУСІ РЕЧІ В ШАФІ:\n{items_text}\n\n"
-        f"Розпиши готові комбінації речей окремо для кожного дня (День 1, День 2... аж до {days} дня) у ніжному дівчачому стилі з емодзі."
-    )
-    
-    model = get_gemini_model()
-    if model:
-        try:
-            response = model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            return f"❌ Ой, не вдалося зібрати валізу: {e}"
-    return "Помилка ініціализации ШІ-стиліста подорожей."
-
-def generate_shopping_recommendation(wardrobe_items: list) -> str:
-    clean_items = []
-    for item in wardrobe_items:
-        if isinstance(item, (tuple, list)) and len(item) >= 4:
-            clean_items.append(f"ID {item[2]}: {item[1]} (Категорія: {item[3]})")
-        else:
-            clean_items.append(str(item))
-    items_text = "\n".join(clean_items)
-    
-    prompt = (
-        f"Ти — професійна дівчина-стиліст. Проаналізуй поточну шафу користувачки:\n{items_text}\n\n"
-        f"Знайди прогалини у базовому гардеробі. Напиши список із 3-4 речей, яких не вистачає, з купою дівочих емодзі 🎀🧁."
-    )
-    
-    model = get_gemini_model()
-    if model:
-        try:
-            response = model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            return f"❌ Не вдалося проаналізувати гардероб: {e}"
-    return "Додайте більше фото вашого одягу!"
->>>>>>> 0b080b3d9331aed004414c4f5038f7734a88bb07
