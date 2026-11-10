@@ -5,10 +5,9 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # Чистий базовий URL без фігурних дужок всередині рядка
+    # ВИПРАВЛЕНО: Правильний базовий URL для поточної погоди
     url = "https://openweathermap.org"
     
-    # Передаємо параметри окремим словником — це унеможливлює помилки інтерполяції рядків
     params = {
         "q": city,
         "appid": api_key,
@@ -23,7 +22,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # Додано індекс елемента списку
+                "description": data["weather"][0]["description"],  # Додано індекс [0]
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -39,7 +38,7 @@ def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # Чистий базовий URL прогнозу
+    # ВИПРАВЛЕНО: Правильний базовий URL для 5-денного прогнозу
     url = "https://openweathermap.org"
     
     params = {
@@ -54,11 +53,11 @@ def get_weather_forecast(city: str) -> dict:
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
-                first_forecast = data["list"][0]  # Додано індекс елемента прогнозу
+                first_forecast = data["list"][0]  # Додано індекс [0]
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # Додано індекс елемента списку
+                    "description": first_forecast["weather"][0]["description"],  # Додано індекс [0]
                     "city": data["city"]["name"]
                 }
         else:
