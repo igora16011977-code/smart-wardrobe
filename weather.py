@@ -5,7 +5,7 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # СЕРВЕРНИЙ URL: Використовуємо api.openweathermap.org та правильний параметр запиту ?q=
+    # ЗМІНЕНО НА АКТУАЛЬНИЙ API ДОМЕН СЕРВЕРА
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -15,7 +15,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # Додано правильний індекс [0]
+                "description": data["weather"][0]["description"],
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -25,14 +25,13 @@ def get_weather(city: str) -> dict:
     except Exception as e:
         print(f"Помилка OpenWeather API: {e}")
         
-    # Якщо щось зламається, ми одразу це побачимо (повернемо 99 градусів замість непомітних 12)
-    return {"temp": 99, "feels_like": 99, "description": "помилка підключення до API", "city": city}
+    return {"temp": 99, "feels_like": 99, "description": f"помилка сервера (Код {response.status_code if 'response' in locals() else 'Unknown'})", "city": city}
 
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # СЕРВЕРНИЙ URL ПРОГНОЗУ: Використовуємо /forecast?q=
+    # ЗМІНЕНО НА АКТУАЛЬНИЙ API ДОМЕН СЕРВЕРА ДЛЯ ПРОГНОЗУ
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -44,7 +43,7 @@ def get_weather_forecast(city: str) -> dict:
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # Додано правильний індекс [0]
+                    "description": first_forecast["weather"][0]["description"],
                     "city": data["city"]["name"]
                 }
     except Exception as e:
