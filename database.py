@@ -101,6 +101,7 @@ def get_user_city(user_id: int) -> str:
     conn.close()
     return row[0] if row else "Lviv"
 
+
 def save_user_city(user_id: int, city: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -111,3 +112,6 @@ def save_user_city(user_id: int, city: str):
     conn.commit()
     cursor.close()
     conn.close()
+
+
+
