@@ -59,11 +59,15 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
     wind = weather_info.get('wind', {}).get('speed', 4.5) if isinstance(weather_info.get('wind'), dict) else weather_info.get('wind', 4.5)
     uv_index = weather_info.get('uv', weather_info.get('uv_index', 2))
 
+       # Знайдіть цей блок у файлі ai_stylist.py:
     weather_header = (
+        f"🌡️ Температура: {temp}°C (відчувається як {feels_like}°C)\n"
+        f"☁️ Стан: {condition}\n"
         f"💨 Вітер: {wind} м/с\n"
-        f"💧 Волгогість: {humidity}%\n"
+        f"💧 Вологість: {humidity}%\n"
         f"☀️ УФ-індекс (UV): {uv_index}\n\n"
     )
+
 
     clean_items = []
     for item in wardrobe_items:
