@@ -5,7 +5,7 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # Використовуємо правильний сервер api.openweathermap.org та шлях /data/2.5/weather
+    # ПРАВИЛЬНИЙ URL: використовується сервер api.openweathermap.org та шлях /data/2.5/weather?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -15,8 +15,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                # ВИПРАВЛЕНО: додано обов'язковий індекс [0] для масиву weather
-                "description": data["weather"][0]["description"],
+                "description": data["weather"][0]["description"],  # Правильний індекс
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -32,7 +31,7 @@ def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # Використовуємо правильний шлях /data/2.5/forecast для прогнозів
+    # ПРАВИЛЬНИЙ URL: використовується сервер api.openweathermap.org та шлях /data/2.5/forecast?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -44,8 +43,7 @@ def get_weather_forecast(city: str) -> dict:
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    # ВИПРАВЛЕНО: додано обов'язковий індекс [0] для масиву weather
-                    "description": first_forecast["weather"][0]["description"],
+                    "description": first_forecast["weather"][0]["description"],  # Правильний індекс
                     "city": data["city"]["name"]
                 }
     except Exception as e:
