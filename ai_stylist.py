@@ -99,6 +99,7 @@ def generate_outfit_recommendation(weather_info: dict, wardrobe_items: list, eve
                 temperature=0.3,
                 max_tokens=450
             )
+            )
             if response and response.choices and len(response.choices) > 0:
                 return f"{weather_header}{response.choices[0].message.content.strip()}"
         except Exception as e:
