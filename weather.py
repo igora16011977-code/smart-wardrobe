@@ -5,45 +5,60 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # ОФІЦІЙНИЙ URL СЕРВЕРА (Замінено на api.openweathermap.org та додано /data/2.5/weather?q=)
-    url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
+    # Абсолютно чистий базовий URL без підстановок всередині рядка
+    url = "https://openweathermap.org"
+    
+    # Передаємо параметри окремим словником — це унеможливлює помилки синтаксису
+    params = {
+        "q": city,
+        "appid": api_key,
+        "units": metric,
+        "lang": "uk"
+    }
     
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
             data = response.json()
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # ВИПРАВЛЕНО: додано індекс [0]
+                "description": data["weather"][0]["description"],  # Правильний індекс масиву
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
             }
         else:
             print(f"OpenWeather помилка {response.status_code}: {response.text}")
-            return {"temp": 99, "feels_like": 99, "description": f"помилка сервера (Код {response.status_code})", "city": city}
+            return {"temp": 99, "feels_like": 99, "description": f"Помилка API (Код {response.status_code})", "city": city}
     except Exception as e:
         print(f"Помилка OpenWeather API: {e}")
-        return {"temp": 99, "feels_like": 99, "description": f"Помилка в коді: {str(e)[:30]}", "city": city}
+        return {"temp": 99, "feels_like": 99, "description": f"Помилка парсингу: {str(e)[:30]}", "city": city}
 
 def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # ОФІЦІЙНИЙ URL ПРОГНОЗУ (Замінено на api.openweathermap.org та додано /data/2.5/forecast?q=)
-    url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
+    # Чистий базовий URL для прогнозу
+    url = "https://openweathermap.org"
+    
+    params = {
+        "q": city,
+        "appid": api_key,
+        "units": "metric",
+        "lang": "uk"
+    }
     
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
-                first_forecast = data["list"][0]  # ВИПРАВЛЕНО: додано індекс [0]
+                first_forecast = data["list"][0]  # Правильний індекс елемента прогнозу
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # ВИПРАВЛЕНО: додано індекс [0]
+                    "description": first_forecast["weather"][0]["description"],  # Правильний індекс масиву
                     "city": data["city"]["name"]
                 }
         else:
