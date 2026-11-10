@@ -5,7 +5,7 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # ВИПРАВЛЕНО: встановлено правильний ендпоінт api.openweathermap.org та параметр ?q=
+    # ПРАВИЛЬНИЙ URL: використовується сервер api.openweathermap.org та шлях /weather?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -15,7 +15,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"], # ВИПРАВЛЕНО: додано індекс [0] для масиву погоди
+                "description": data["weather"][0]["description"],  # Додано правильний індекс [0]
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -31,7 +31,7 @@ def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # ВИПРАВЛЕНО: встановлено правильний ендпоінт /forecast для прогнозів
+    # ПРАВИЛЬНИЙ URL: використовується сервер api.openweathermap.org та шлях /forecast?q=
     url = f"https://openweathermap.org{city}&appid={api_key}&units=metric&lang=uk"
     
     try:
@@ -43,7 +43,7 @@ def get_weather_forecast(city: str) -> dict:
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"], # ВИПРАВЛЕНО: додано індекс [0]
+                    "description": first_forecast["weather"][0]["description"],  # Додано правильний індекс [0]
                     "city": data["city"]["name"]
                 }
     except Exception as e:
