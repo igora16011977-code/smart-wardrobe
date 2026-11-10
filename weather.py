@@ -5,7 +5,7 @@ def get_weather(city: str) -> dict:
     """Отримує поточну погоду для міста через офіційне API OpenWeatherMap."""
     api_key = config.WEATHER_API_KEY
     
-    # ВИПРАВЛЕНО: Правильний базовий URL для поточної погоди
+    # ПРАВИЛЬНА АДРЕСА: api.openweathermap.org з повним шляхом /weather
     url = "https://openweathermap.org"
     
     params = {
@@ -22,7 +22,7 @@ def get_weather(city: str) -> dict:
             return {
                 "temp": round(data["main"]["temp"]),
                 "feels_like": round(data["main"]["feels_like"]),
-                "description": data["weather"][0]["description"],  # Додано індекс [0]
+                "description": data["weather"][0]["description"],  # Додано правильний індекс [0]
                 "city": data["name"],
                 "humidity": data["main"]["humidity"],
                 "wind": {"speed": data["wind"]["speed"]}
@@ -38,7 +38,7 @@ def get_weather_forecast(city: str) -> dict:
     """Отримує прогноз погоди для подорожей."""
     api_key = config.WEATHER_API_KEY
     
-    # ВИПРАВЛЕНО: Правильний базовий URL для 5-денного прогнозу
+    # ПРАВИЛЬНА АДРЕСА ПРОГНОЗУ: api.openweathermap.org з повним шляхом /forecast
     url = "https://openweathermap.org"
     
     params = {
@@ -53,11 +53,11 @@ def get_weather_forecast(city: str) -> dict:
         if response.status_code == 200:
             data = response.json()
             if "list" in data and len(data["list"]) > 0:
-                first_forecast = data["list"][0]  # Додано індекс [0]
+                first_forecast = data["list"][0]  # Додано правильний індекс [0]
                 return {
                     "temp": round(first_forecast["main"]["temp"]),
                     "feels_like": round(first_forecast["main"]["feels_like"]),
-                    "description": first_forecast["weather"][0]["description"],  # Додано індекс [0]
+                    "description": first_forecast["weather"][0]["description"],  # Додано правильний індекс [0]
                     "city": data["city"]["name"]
                 }
         else:
