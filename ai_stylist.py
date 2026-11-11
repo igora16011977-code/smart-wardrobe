@@ -5,6 +5,7 @@
 """
 
 import os
+import time
 from typing import Any, Iterable
 
 import config
@@ -92,13 +93,41 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             mime_type=mime_type,
         )
         model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-        response = client.models.generate_content(
-            model=model_name,
-            contents=[prompt, image_part],
-            config=types.GenerateContentConfig(
-                max_output_tokens=160,
-            ),
-        )
+        # Тимчасові помилки Gemini (зокрема 503 UNAVAILABLE) повторюємо
+        # кілька разів із паузою. Інші помилки одразу передаємо виклику.
+        retry_delays = (2, 5, 10)
+        for attempt in range(len(retry_delays) + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[prompt, image_part],
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=160,
+                    ),
+                )
+                break
+            except Exception as api_exc:
+                error_text = str(api_exc).upper()
+                status_code = (
+                    getattr(api_exc, "code", None)
+                    or getattr(api_exc, "status_code", None)
+                )
+                retryable = (
+                    status_code in (429, 500, 502, 503, 504)
+                    or any(marker in error_text for marker in (
+                        "503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED",
+                        "500", "502", "504", "INTERNAL SERVER ERROR",
+                        "BAD GATEWAY", "GATEWAY TIMEOUT",
+                    ))
+                )
+                if not retryable or attempt >= len(retry_delays):
+                    raise
+                delay = retry_delays[attempt]
+                print(
+                    f"Gemini тимчасово недоступний (спроба {attempt + 1}/"
+                    f"{len(retry_delays) + 1}). Повтор через {delay} с."
+                )
+                time.sleep(delay)
 
         description = (getattr(response, "text", None) or "").strip()
         if not description:
