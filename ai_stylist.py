@@ -91,12 +91,11 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
             data=bytes(image_bytes),
             mime_type=mime_type,
         )
-        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
         response = client.models.generate_content(
             model=model_name,
             contents=[prompt, image_part],
             config=types.GenerateContentConfig(
-                temperature=0.1,
                 max_output_tokens=160,
             ),
         )
