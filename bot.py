@@ -320,37 +320,80 @@ async def save_new_home_city(message: types.Message, state: FSMContext):
 
 # --- ПРИЙОМ НОВИХ ФОТО (ІЗ ЗАВАНТАЖЕННЯМ БАЙТІВ ДЛЯ GEMINI) ---
 
+
 @dp.message_handler(content_types=['photo'], state="*")
 async def handle_clothing_photo(message: types.Message):
     user_id = message.from_user.id
     photo = message.photo[-1]
-    status = await message.reply("🔮 Аналізую фотографію одягу...")
+
+    status = await message.reply(
+        "🔮 Аналізую фотографію одягу..."
+    )
 
     try:
+        logging.info(
+            "Початок обробки фото користувача %s",
+            user_id
+        )
+
         photo_file = await bot.get_file(photo.file_id)
+
         photo_buffer = BytesIO()
-        await bot.download_file(photo_file.file_path, photo_buffer)
+        await bot.download_file(
+            photo_file.file_path,
+            photo_buffer
+        )
         image_bytes = photo_buffer.getvalue()
 
-        description = ai_stylist.analyze_clothing_image(image_bytes)
+        if not image_bytes:
+            raise ValueError("Фотографія порожня.")
 
-        database.add_clothing(
-            user_id=user_id,
-            file_id=photo.file_id,
-            description=description
+        logging.info(
+            "Фото завантажено. Розмір: %s байтів",
+            len(image_bytes)
         )
+
+        logging.info("Починаю аналіз Gemini")
+
+        description = await asyncio.wait_for(
+            asyncio.to_thread(
+                ai_stylist.analyze_clothing_image,
+                image_bytes
+            ),
+            timeout=60
+        )
+
+        logging.info("Gemini завершив аналіз: %s", description)
+
+        await asyncio.to_thread(
+            database.add_clothing,
+            user_id,
+            photo.file_id,
+            description
+        )
+
+        logging.info("Річ збережено в базі даних")
 
         await status.edit_text(
             f"✨ Річ успішно додано!\n\n"
-            f"Розпізнаний опис: {description}"
+            f"Автоматичний аналіз: {description}\n"
+            f"Тепер вона бере участь у підборах образу! 🎀"
         )
 
-    except Exception as e:
+    except asyncio.TimeoutError:
+        logging.error("Перевищено час очікування Gemini")
+        await status.edit_text(
+            "⏳ Аналіз фотографії триває надто довго. "
+            "Спробуй ще раз трохи пізніше."
+        )
+
+    except Exception:
         logging.exception("Помилка обробки фотографії")
         await status.edit_text(
-            "Не вдалося розпізнати або зберегти річ. "
-            "Спробуй ще раз пізніше."
+            "❌ Не вдалося розпізнати або зберегти річ. "
+            "Перевіримо технічну причину."
         )
+
 # --- ЗАПУСК БОТА ---
 
 async def main():
