@@ -117,12 +117,19 @@ def add_clothing(user_id: int, file_id: str, description: str) -> None:
     """Додає річ до гардероба користувача."""
     if not file_id:
         raise ValueError("Не передано Telegram file_id фотографії.")
+
     description = (description or "").strip()
     if not description:
         raise ValueError("Опис речі не може бути порожнім.")
 
     category = _detect_category(description)
+
     with _db_session() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
                 """
+                INSERT INTO clothes (user_id, file_id, description, category)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (int(user_id), file_id, description, category),
+            )
