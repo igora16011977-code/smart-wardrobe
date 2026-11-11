@@ -34,7 +34,10 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 storage = MemoryStorage()
 bot = Bot(token=config.TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=storage)
@@ -89,10 +92,10 @@ async def process_event_and_get_outfit(message: types.Message, state: FSMContext
     await message.answer("🔮 *Дивлюсь у віконце на погоду та перебираю твою віртуальну шафу... Зачекай хвилиночку!* ✨", reply_markup=main_keyboard, parse_mode="Markdown")
     
     user_id = message.from_user.id
-    user_city = database.get_user_city(user_id)
+    user_city = await asyncio.to_thread(database.get_user_city, user_id)
     
-    weather_data = weather.get_weather(city=user_city)
-    raw_items = database.get_user_wardrobe(user_id, "все")
+    weather_data = await asyncio.to_thread(weather.get_weather, user_city)
+    raw_items = await asyncio.to_thread(database.get_user_wardrobe, user_id, "все")
     
     if not raw_items:
         await message.answer(
@@ -102,7 +105,9 @@ async def process_event_and_get_outfit(message: types.Message, state: FSMContext
         )
         return
 
-    full_recommendation = ai_stylist.generate_outfit_recommendation(weather_data, raw_items, event)
+    full_recommendation = await asyncio.to_thread(
+        ai_stylist.generate_outfit_recommendation, weather_data, raw_items, event
+    )
     await message.answer(f"📍 **Твій індивідуальний лукбук ({user_city}):**\n\n{full_recommendation}", parse_mode="Markdown")
 
 # --- БЛОК 2: 👗 ВІЗУАЛЬНА ШАФА (ГОРТАННЯ СТРІЛОЧКАМИ) ---
@@ -126,7 +131,7 @@ async def process_category_view(callback_query: types.CallbackQuery):
     category = callback_query.data.split("_")[1]
     user_id = callback_query.from_user.id
     
-    items = database.get_user_wardrobe(user_id, category)
+    items = await asyncio.to_thread(database.get_user_wardrobe, user_id, category)
     await callback_query.answer()
     
     if not items:
@@ -175,7 +180,7 @@ async def navigate_gallery(callback_query: types.CallbackQuery):
     index = int(index_str)
     user_id = callback_query.from_user.id
     
-    items = database.get_user_wardrobe(user_id, category)
+    items = await asyncio.to_thread(database.get_user_wardrobe, user_id, category)
     await callback_query.answer()
     
     if items and index < len(items):
@@ -195,11 +200,11 @@ async def delete_item_handler(callback_query: types.CallbackQuery):
     item_id = int(item_id_str)
     user_id = callback_query.from_user.id
     
-    database.delete_clothing(item_id, user_id)
+    await asyncio.to_thread(database.delete_clothing, item_id, user_id)
     await callback_query.answer("Річ успішно видалена! 🌬️")
     await callback_query.message.delete()
     
-    items = database.get_user_wardrobe(user_id, category)
+    items = await asyncio.to_thread(database.get_user_wardrobe, user_id, category)
     if items:
         await send_wardrobe_gallery_item(user_id, items, 0, category)
     else:
@@ -221,7 +226,9 @@ async def save_new_description_handler(message: types.Message, state: FSMContext
     data = await state.get_data()
     user_id = message.from_user.id
     
-    database.update_clothing_description(data['item_id'], user_id, new_desc)
+    await asyncio.to_thread(
+        database.update_clothing_description, data['item_id'], user_id, new_desc
+    )
     try:
         await bot.delete_message(user_id, data['msg_id'])
     except Exception:
@@ -230,7 +237,9 @@ async def save_new_description_handler(message: types.Message, state: FSMContext
     await state.finish()
     await message.answer("✨ *Опис оновлено, а річ дбайливо перескладено!*", parse_mode="Markdown")
     
-    items = database.get_user_wardrobe(user_id, data['category'])
+    items = await asyncio.to_thread(
+        database.get_user_wardrobe, user_id, data['category']
+    )
     if items:
         await send_wardrobe_gallery_item(user_id, items, min(data['index'], len(items)-1), data['category'])
 
@@ -273,15 +282,17 @@ async def process_trip_days(message: types.Message, state: FSMContext):
     await message.answer(f"🧁 Збираю компактну валізу та планую Pinterest-аутфіти на кожен із {days} днів подорожі... ✨")
     
     user_id = message.from_user.id
-    trip_weather = weather.get_weather_forecast(city=destination)
+    trip_weather = await asyncio.to_thread(weather.get_weather_forecast, destination)
     weather_desc = f"{trip_weather.get('temp', 12)}°C, {trip_weather.get('description', 'чудова погода')}"
     
-    wardrobe = database.get_user_wardrobe(user_id, "все")
+    wardrobe = await asyncio.to_thread(database.get_user_wardrobe, user_id, "все")
     if not wardrobe:
         await message.answer("⚠️ Твоя шафа порожня! Додай спочатку фото речей, щоб я могла спакувати твою стильну валізу.")
         return
         
-    itinerary = ai_stylist.generate_trip_itinerary(weather_desc, wardrobe, destination, days)
+    itinerary = await asyncio.to_thread(
+        ai_stylist.generate_trip_itinerary, weather_desc, wardrobe, destination, days
+    )
     await message.answer(f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}", parse_mode="Markdown")
 
 
@@ -291,13 +302,15 @@ async def process_trip_days(message: types.Message, state: FSMContext):
 async def check_missing_items(message: types.Message, state: FSMContext):
     await state.finish()
     user_id = message.from_user.id
-    raw_items = database.get_user_wardrobe(user_id, "все")
+    raw_items = await asyncio.to_thread(database.get_user_wardrobe, user_id, "все")
     if not raw_items:
         await message.answer("🧸 Надішли мені спочатку хоча б 3-5 фотографій свого одягу, щоб я розпізнала твою улюблену кольорову палітру!")
         return
         
     await message.answer("🔎 Сканую твої речі, аналізую колірну гаму та підбираю ідеальні базові елементи... ☕️")
-    recommendation = ai_stylist.generate_shopping_recommendation(raw_items)
+    recommendation = await asyncio.to_thread(
+        ai_stylist.generate_shopping_recommendation, raw_items
+    )
     await message.answer(f"🛍️ *Твій Wish-list для ідеального гардероба:*\n\n{recommendation}", parse_mode="Markdown")
 
 
@@ -306,14 +319,14 @@ async def check_missing_items(message: types.Message, state: FSMContext):
 @dp.message_handler(Text(equals="⚙️ Змінити місто"), state="*")
 async def start_city_settings(message: types.Message, state: FSMContext):
     await state.finish()
-    current_city = database.get_user_city(message.from_user.id)
+    current_city = await asyncio.to_thread(database.get_user_city, message.from_user.id)
     await UserSettingsStates.waiting_for_city_settings.set()
     await message.answer(f"🏠 Твоє поточне затишне місто для прогнозу: *{current_city}*.\n\nНа яке місто ти хочеш його змінити?", parse_mode="Markdown")
 
 @dp.message_handler(state=UserSettingsStates.waiting_for_city_settings)
 async def save_new_home_city(message: types.Message, state: FSMContext):
     new_city = message.text.strip()
-    database.save_user_city(message.from_user.id, new_city)
+    await asyncio.to_thread(database.save_user_city, message.from_user.id, new_city)
     await state.finish()
     await message.answer(f"✨ Супер! Тепер я постійно орієнтуюся на місто *{new_city}* 🌸", reply_markup=main_keyboard, parse_mode="Markdown")
 
@@ -360,7 +373,7 @@ async def handle_clothing_photo(message: types.Message):
                 ai_stylist.analyze_clothing_image,
                 image_bytes
             ),
-            timeout=60
+            timeout=150
         )
 
         logging.info("Gemini завершив аналіз: %s", description)
@@ -397,10 +410,13 @@ async def handle_clothing_photo(message: types.Message):
 # --- ЗАПУСК БОТА ---
 
 async def main():
-    database.init_db()
+    logging.info("Ініціалізація бази даних")
+    await asyncio.to_thread(database.init_db)
     try:
+        logging.info("Запуск Telegram polling; перевірте, що працює лише один екземпляр бота")
         await dp.start_polling()
     finally:
+        logging.info("Зупинка Telegram polling")
         await bot.close()
 
 if __name__ == '__main__': # Виправлено синтаксис dunder-змінних
