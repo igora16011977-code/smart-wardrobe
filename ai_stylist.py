@@ -199,6 +199,58 @@ def _trip_wardrobe_lines(wardrobe_items):
     return lines
 
 
+def _validate_trip_capsule_count(text: str, min_items: int, max_items: int):
+    """Рахує унікальні одиниці одягу в капсулі, не враховуючи взуття й аксесуари."""
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines)
+                  if "компактна капсула" in line.casefold()), None)
+    if start is None:
+        return None, "Не знайдено розділ «Компактна капсула для подорожі»."
+
+    end = next((i for i in range(start + 1, len(lines))
+                if "образи за днями" in lines[i].casefold()), None)
+    if end is None:
+        return None, "Не знайдено розділ «Образи за днями поїздки»."
+
+    clothing_categories = (
+        "верхній одяг", "теплі шари", "футболки", "базовий верх",
+        "штани", "джинси", "інший низ", "спідниці", "сукні",
+    )
+    current_category = None
+    counted_items = set()
+
+    for raw_line in lines[start + 1:end]:
+        line = raw_line.strip()
+        if not line:
+            continue
+        category_line = re.sub(r"[*#:_`]", "", line).casefold()
+        if "взуття" in category_line or "аксесуари" in category_line:
+            current_category = "excluded"
+            continue
+        item_match = re.match(r"^(?:[-•*]|\d+[.)])\s+(.+)$", line)
+        if not item_match and any(
+            name in category_line for name in clothing_categories
+        ):
+            current_category = "clothing"
+            continue
+        if current_category != "clothing":
+            continue
+        if not item_match:
+            continue
+        item = re.sub(r"[*_`]", "", item_match.group(1)).strip()
+        normalized = re.sub(r"[^\w]+", " ", item.casefold()).strip()
+        if normalized:
+            counted_items.add(normalized)
+
+    count = len(counted_items)
+    if not min_items <= count <= max_items:
+        return count, (
+            f"У капсулі {count} одиниць одягу; потрібно від "
+            f"{min_items} до {max_items}. Взуття й аксесуари не рахуються."
+        )
+    return count, None
+
+
 def _validate_trip_itinerary(text, days):
     """Перевіряє кількість, послідовність днів і складові образів."""
 
@@ -370,6 +422,9 @@ def generate_trip_itinerary(
 
     items_text = "\n".join(f"- {item}" for item in items)
 
+    min_clothing_items = 2 * days
+    max_clothing_items = 3 * days
+
     prompt = (
         "Ти — професійний персональний стиліст для подорожей.\n\n"
 
@@ -391,16 +446,24 @@ def generate_trip_itinerary(
         "зазначено у тривалості подорожі.\n"
         "8. Не пропускай жодного дня.\n"
         "9. Не завершуй відповідь, поки не сформуєш усі дні.\n\n"
-
+        f"10. Компактна капсула повинна містити від {min_clothing_items} "
+        f"до {max_clothing_items} одиниць одягу на всю подорож.\n"
+        "11. Не включай до капсули весь гардероб — вибирай лише речі, "
+        "які реально потрібні для цієї поїздки.\n"
+        "12. Кількість речей має відповідати тривалості подорожі: "
+        "для кожного дня використовуй повторні комбінації вже вибраних речей.\n"
+        "13. Взуття та аксесуари перелічуй окремо, вони не входять "
+        "до зазначеної кількості одягу.\n\n"
         "ФОРМАТ ВІДПОВІДІ:\n\n"
 
         "### 🧳 Компактна капсула для подорожі\n"
-        "Розподіли речі за категоріями:\n"
-        "Верхній одяг і теплі шари.\n"
-        "Футболки та базовий верх.\n"
-        "Штани, джинси та інший низ.\n"
-        "Взуття.\n"
-        "Аксесуари.\n\n"
+        "Розподіли речі за категоріями. Кожну річ подавай окремим "
+        "рядком, який починається з «- »:\n"
+        "Верхній одяг і теплі шари:\n- назва речі\n"
+        "Футболки та базовий верх:\n- назва речі\n"
+        "Штани, джинси та інший низ:\n- назва речі\n"
+        "Взуття:\n- назва речі\n"
+        "Аксесуари:\n- назва речі\n\n"
 
         "### ✈️ Образи за днями поїздки\n\n"
 
@@ -430,9 +493,12 @@ def generate_trip_itinerary(
         missing_days, incomplete_days, structure_issues = (
             _validate_trip_itinerary(result, days)
         )
+        capsule_count, capsule_issue = _validate_trip_capsule_count(
+            result, min_clothing_items, max_clothing_items
+        )
    
 
-        if missing_days or incomplete_days or structure_issues:
+        if missing_days or incomplete_days or structure_issues or capsule_issue:
 
             problems = []
 
@@ -449,6 +515,8 @@ def generate_trip_itinerary(
                 )
             if structure_issues:
                 problems.extend(structure_issues)
+            if capsule_issue:
+                problems.append(capsule_issue)
 
             correction_prompt = (
                 "Ти отримав неповний план подорожі. "
@@ -473,6 +541,10 @@ def generate_trip_itinerary(
                 "Якщо річ не потрібна або відсутня, прямо зазнач це. "
                 "Використовуй тільки наданий гардероб. "
                 "Не показуй ID. "
+                f"У капсулі має бути від {min_clothing_items} до "
+                f"{max_clothing_items} унікальних одиниць одягу; "
+                "взуття й аксесуари не рахуй. "
+                "Кожну річ у капсулі подавай окремим рядком із маркером «- ». "
                 f"Створи рівно {days} днів, не більше і не менше. "
                 "Поверни повний виправлений план українською."
             )
@@ -485,8 +557,11 @@ def generate_trip_itinerary(
             missing_days, incomplete_days, structure_issues = (
                 _validate_trip_itinerary(result, days)
             )
+            capsule_count, capsule_issue = _validate_trip_capsule_count(
+                result, min_clothing_items, max_clothing_items
+            )
 
-        if missing_days or incomplete_days or structure_issues:
+        if missing_days or incomplete_days or structure_issues or capsule_issue:
             problems = []
 
             if missing_days:
@@ -497,6 +572,8 @@ def generate_trip_itinerary(
 
             if structure_issues:
                 problems.extend(structure_issues)
+            if capsule_issue:
+                problems.append(capsule_issue)
 
             result += "\n\n⚠️ План потребує перевірки: " + "; ".join(problems)
 
