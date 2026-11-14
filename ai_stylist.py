@@ -162,12 +162,12 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
 
 
 def _wardrobe_lines(wardrobe_items: Iterable[Any]) -> list[str]:
-    """Перетворює записи БД на зрозумілий перелік речей."""
+    """Перетворює записи БД на перелік речей без службових ID."""
     lines = []
     for item in wardrobe_items or []:
         if isinstance(item, (tuple, list)) and len(item) >= 4:
-            _file_id, description, item_id, category = item[:4]
-            lines.append(f"ID {item_id} | категорія: {category} | опис: {description}")
+            _file_id, description, _item_id, category = item[:4]
+            lines.append(f"категорія: {category} | опис: {description}")
         else:
             lines.append(str(item))
     return lines
