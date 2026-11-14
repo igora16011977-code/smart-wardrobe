@@ -3,7 +3,7 @@
 Усі текстові функції та аналіз фотографій використовують Gemini.
 Збережено публічні назви функцій і сигнатури, які викликає bot.py.
 """
-
+import re
 import os
 import time
 from typing import Any, Iterable
@@ -172,6 +172,136 @@ def _wardrobe_lines(wardrobe_items: Iterable[Any]) -> list[str]:
             lines.append(str(item))
     return lines
 
+def _trip_wardrobe_lines(wardrobe_items):
+    """Готує перелік речей для подорожі без ID та точних дублікатів."""
+    lines = []
+    seen = set()
+
+    for item in wardrobe_items or []:
+        if isinstance(item, (tuple, list)) and len(item) >= 4:
+            description = str(item[1]).strip()
+        else:
+            description = str(item).strip()
+
+        if not description:
+            continue
+
+        normalized = re.sub(
+            r"[^\w]+", " ", description.casefold()
+        ).strip()
+
+        if normalized in seen:
+            continue
+
+        seen.add(normalized)
+        lines.append(description)
+
+    return lines
+
+
+def _validate_trip_itinerary(text, days):
+    """Перевіряє кількість, послідовність днів і складові образів."""
+
+    day_pattern = re.compile(
+        r"(?im)^\s*(?:#{1,6}\s*)?(?:✈️\s*)?День\s+(\d+)\b"
+    )
+
+    matches = list(day_pattern.finditer(text))
+    day_numbers = [int(match.group(1)) for match in matches]
+
+    expected_days = list(range(1, days + 1))
+
+    # Перевіряємо відсутні дні.
+    missing_days = [
+        number for number in expected_days
+        if number not in day_numbers
+    ]
+
+    # Перевіряємо повторення та зайві дні.
+    duplicates = sorted({
+        number for number in day_numbers
+        if day_numbers.count(number) > 1
+    })
+
+    unexpected_days = sorted({
+        number for number in day_numbers
+        if number not in expected_days
+    })
+
+    structure_issues = []
+
+    if duplicates:
+        structure_issues.append(
+            "Повторені дні: "
+            + ", ".join(map(str, duplicates))
+        )
+
+    if unexpected_days:
+        structure_issues.append(
+            "Зайві дні: "
+            + ", ".join(map(str, unexpected_days))
+        )
+
+    if len(day_numbers) != days:
+        structure_issues.append(
+            f"Кількість заголовків днів: {len(day_numbers)}, "
+            f"очікується: {days}"
+        )
+
+    if day_numbers != expected_days:
+        structure_issues.append(
+            "Неправильна послідовність днів. "
+            f"Очікується: {expected_days}; отримано: {day_numbers}"
+        )
+
+    # Визначаємо текстові блоки кожного дня.
+    day_sections = {}
+
+    for index, match in enumerate(matches):
+        day_number = int(match.group(1))
+
+        start = match.end()
+        end = (
+            matches[index + 1].start()
+            if index + 1 < len(matches)
+            else len(text)
+        )
+
+        # Зберігаємо перший блок дня, щоб дублікати
+        # не перезаписували його під час перевірки.
+        if day_number not in day_sections:
+            day_sections[day_number] = text[start:end]
+
+    # Перевіряємо складові кожного образу.
+    required_fields = [
+        "Верх",
+        "Верхній шар",
+        "Низ",
+        "Взуття",
+        "Аксесуари",
+    ]
+
+    incomplete_days = {}
+
+    for day_number in expected_days:
+        section = day_sections.get(day_number, "")
+
+        found_fields = set(re.findall(
+            r"(?im)^\s*(?:[-•]\s*)?"
+            r"(Верхній шар|Верх|Низ|Взуття|Аксесуари)\s*:",
+            section
+        ))
+
+        missing_fields = [
+            field for field in required_fields
+            if field not in found_fields
+        ]
+
+        if missing_fields:
+            incomplete_days[day_number] = missing_fields
+
+    return missing_days, incomplete_days, structure_issues
+
 
 def generate_outfit_recommendation(
     weather_info: dict, wardrobe_items: list, event: str
@@ -227,30 +357,161 @@ def generate_outfit_recommendation(
         )
 
 
+
 def generate_trip_itinerary(
     weather_desc: str, wardrobe_items: list, destination: str, days: int
 ) -> str:
-    """Планує капсулу та комплекти на кожен день подорожі через Gemini."""
-    items_text = "\n".join(
-        f"- {line}" for line in _wardrobe_lines(wardrobe_items)
-    ) or "Гардероб поки порожній."
+    """Формує компактну капсулу та перевірені образи на кожен день."""
+
+    items = _trip_wardrobe_lines(wardrobe_items)
+
+    if not items:
+        return "У твоєму гардеробі поки немає речей для формування валізи."
+
+    items_text = "\n".join(f"- {item}" for item in items)
+
     prompt = (
-        "Ти — персональний стиліст для планування подорожей. Склади компактну "
-        "капсулу та окремий комплект на кожен день поїздки. Використовуй лише "
-        "речі з наданого гардероба; не вигадуй відсутні предмети. Якщо категорії "
-        "бракує, прямо вкажи це. Враховуй прогноз погоди та практичність "
-        "повторного поєднання речей. Відповідай українською.\n\n"
-        f"Місто: {destination}\nТривалість: {days} днів\n"
-        f"Прогноз: {weather_desc}\nГАРДЕРОБ:\n{items_text}\n\n"
-        "Спочатку переліч компактну капсулу, потім розпиши образи за днями "
-        "(верх, низ, взуття, верхній шар та аксесуари). Для кожного дня "
-        "використовуй тільки предмети з наведеного гардероба."
+        "Ти — професійний персональний стиліст для подорожей.\n\n"
+
+        f"МІСТО: {destination}\n"
+        f"ТРИВАЛІСТЬ: РІВНО {days} ДНІВ.\n"
+        f"ПОГОДА: {weather_desc}\n\n"
+
+        f"НАЯВНИЙ ГАРДЕРОБ:\n{items_text}\n\n"
+
+        "ОБОВ'ЯЗКОВІ ПРАВИЛА:\n"
+        "1. Використовуй тільки наведені речі.\n"
+        "2. Не показуй ID та технічні номери.\n"
+        "3. Не повторюй однакову річ у списку капсули.\n"
+        "4. Різні речі одного типу не об'єднуй, якщо вони "
+        "відрізняються кольором, фасоном або іншими ознаками.\n"
+        "5. Не вигадуй одяг, якого немає в гардеробі.\n"
+        "6. Повторно використовуй речі в різних комбінаціях.\n"
+        "7. Сформуй ОБОВ'ЯЗКОВО рівно стільки днів, скільки "
+        "зазначено у тривалості подорожі.\n"
+        "8. Не пропускай жодного дня.\n"
+        "9. Не завершуй відповідь, поки не сформуєш усі дні.\n\n"
+
+        "ФОРМАТ ВІДПОВІДІ:\n\n"
+
+        "### 🧳 Компактна капсула для подорожі\n"
+        "Розподіли речі за категоріями:\n"
+        "Верхній одяг і теплі шари.\n"
+        "Футболки та базовий верх.\n"
+        "Штани, джинси та інший низ.\n"
+        "Взуття.\n"
+        "Аксесуари.\n\n"
+
+        "### ✈️ Образи за днями поїздки\n\n"
+
+        "Для КОЖНОГО дня використовуй точно такий формат:\n\n"
+
+        "### День 1 — назва образу\n"
+        "Верх: назва речі.\n"
+        "Верхній шар: назва речі або Не потрібен.\n"
+        "Низ: назва речі.\n"
+        "Взуття: назва речі.\n"
+        "Аксесуари: назва речі або У гардеробі немає.\n\n"
+
+        "Потім аналогічно День 2, День 3 і так далі "
+        "до останнього дня подорожі.\n\n"
+
+        "Кожен із п'яти пунктів повинен бути присутнім "
+        "у кожному дні. Якщо певної речі немає, прямо "
+        "зазнач це, не вигадуючи заміну.\n\n"
+
+        "Наприкінці додай 2-3 короткі поради з пакування.\n"
+        "Відповідай українською, структуровано та без ID.\n"
     )
+
     try:
-        return _ask_gemini(prompt, max_tokens=1100)
+        result = _ask_gemini(prompt, max_tokens=3500)
+
+        missing_days, incomplete_days, structure_issues = (
+            _validate_trip_itinerary(result, days)
+        )
+   
+
+        if missing_days or incomplete_days or structure_issues:
+
+            problems = []
+
+            if missing_days:
+                problems.append(
+                    "Відсутні дні: "
+                    + ", ".join(map(str, missing_days))
+                )
+
+            for day, fields in incomplete_days.items():
+                problems.append(
+                    f"День {day}: відсутні поля "
+                    + ", ".join(fields)
+                )
+            if structure_issues:
+                problems.extend(structure_issues)
+
+            correction_prompt = (
+                "Ти отримав неповний план подорожі. "
+                "Необхідно виправити його.\n\n"
+
+                f"Місто: {destination}\n"
+                f"Тривалість: рівно {days} днів.\n"
+                f"Погода: {weather_desc}\n\n"
+
+                f"ПОВНИЙ ДОСТУПНИЙ ГАРДЕРОБ:\n{items_text}\n\n"
+
+                f"ПОПЕРЕДНІЙ РЕЗУЛЬТАТ:\n{result}\n\n"
+
+                "ВИЯВЛЕНІ ПРОБЛЕМИ:\n"
+                + "\n".join(problems)
+                + "\n\n"
+
+                "Створи ВИПРАВЛЕНУ ПОВНУ ВЕРСІЮ плану. "
+                "Не пропускай капсулу та жодного дня. "
+                "Для кожного дня обов'язково вкажи поля: "
+                "Верх:, Верхній шар:, Низ:, Взуття:, Аксесуари:. "
+                "Якщо річ не потрібна або відсутня, прямо зазнач це. "
+                "Використовуй тільки наданий гардероб. "
+                "Не показуй ID. "
+                f"Створи рівно {days} днів, не більше і не менше. "
+                "Поверни повний виправлений план українською."
+            )
+
+            result = _ask_gemini(
+                correction_prompt,
+                max_tokens=3500
+            )
+
+            missing_days, incomplete_days, structure_issues = (
+                _validate_trip_itinerary(result, days)
+            )
+
+        if missing_days or incomplete_days or structure_issues:
+            problems = []
+
+            if missing_days:
+                problems.append(f"Відсутні дні: {missing_days}")
+
+            if incomplete_days:
+                problems.append(f"Неповні дні: {incomplete_days}")
+
+            if structure_issues:
+                problems.extend(structure_issues)
+
+            result += "\n\n⚠️ План потребує перевірки: " + "; ".join(problems)
+
+        return result
+   
     except Exception as exc:
-        print(f"Помилка Gemini під час планування подорожі: {exc}")
-        return "Не вдалося сформувати план подорожі через Gemini. Спробуйте ще раз пізніше."
+        print(
+            f"Помилка Gemini під час планування подорожі: {exc}"
+        )
+
+        return (
+            "Не вдалося сформувати план подорожі через Gemini. "
+            "Спробуйте ще раз трохи пізніше."
+        )
+
 
 
 def generate_shopping_recommendation(wardrobe_items: list) -> str:
