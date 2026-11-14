@@ -251,6 +251,35 @@ import database
 import weather
 import ai_stylist
 
+
+
+async def send_long_message(message, text):
+    """Надсилає довгий текст частинами без помилок Markdown."""
+    max_length = 4000
+
+    chunks = []
+    current_chunk = ""
+
+    for paragraph in text.split("\n"):
+        if len(current_chunk) + len(paragraph) + 1 <= max_length:
+            current_chunk += paragraph + "\n"
+        else:
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+
+            while len(paragraph) > max_length:
+                chunks.append(paragraph[:max_length])
+                paragraph = paragraph[max_length:]
+
+            current_chunk = paragraph + "\n"
+
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    for chunk in chunks:
+        await message.answer(chunk)
+
+
 # --- БЛОК 3: 🧳 ПЛАН ПОДОРОЖІ ---
 
 # Додано пропущений декоратор для кнопки
@@ -293,7 +322,10 @@ async def process_trip_days(message: types.Message, state: FSMContext):
     itinerary = await asyncio.to_thread(
         ai_stylist.generate_trip_itinerary, weather_desc, wardrobe, destination, days
     )
-    await message.answer(f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}", parse_mode="Markdown")
+    await send_long_message(
+    message,
+    f"🧳 Твій розумний гайд для мандрівки у *{destination}*:\n\n{itinerary}"
+)
 
 
 # --- БЛОК 4: 🛍️ ЧОГО НЕ ВИСТАЧАЄ ---
