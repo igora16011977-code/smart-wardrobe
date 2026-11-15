@@ -3,7 +3,7 @@ import logging
 import threading
 import os
 from io import BytesIO
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters.builtin import Text
@@ -18,51 +18,51 @@ import weather
 import ai_stylist
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+class SafeHandler(BaseHTTPRequestHandler):
+    """Мінімальний health-check endpoint для Render та UptimeRobot."""
 
-
-class SafeHandler(SimpleHTTPRequestHandler):
-    def do_GET(self):
+    def _send_ok(self, include_body=True):
+        body = b"OK"
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", "2")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(b"OK")
+        if include_body:
+            self.wfile.write(body)
+
+    def do_GET(self):
+        self._send_ok(include_body=True)
 
     def do_HEAD(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", "2")
-        self.end_headers()
+        # HEAD має повертати ті самі заголовки, що й GET, але без тіла відповіді.
+        self._send_ok(include_body=False)
 
     def log_message(self, format, *args):
-        logging.info("HTTP: %s", format % args)
+        logging.info("HTTP health check: %s", format % args)
 
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
-    server = None
     try:
-        server = HTTPServer(("0.0.0.0", port), SafeHandler)
-        logging.info("HTTP health server запущено на порту %s", port)
+        # ThreadingHTTPServer не блокує наступні перевірки паралельними запитами.
+        server = ThreadingHTTPServer(("0.0.0.0", port), SafeHandler)
+        logging.info("HTTP health server запущено на 0.0.0.0:%s", port)
         server.serve_forever()
     except Exception:
-        logging.exception("Не вдалося запустити або підтримувати HTTP health server")
-    finally:
-        if server is not None:
-            server.server_close()
-            logging.info("HTTP health server зупинено")
+        logging.exception("Помилка запуску HTTP health server")
 
 
-http_thread = threading.Thread(
+threading.Thread(
     target=run_dummy_server,
     name="http-health-server",
     daemon=True,
+).start()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
-http_thread.start()
 storage = MemoryStorage()
 bot = Bot(token=config.TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=storage)
@@ -467,35 +467,14 @@ async def handle_clothing_photo(message: types.Message):
 # --- ЗАПУСК БОТА ---
 
 async def main():
-    logging.info("Запуск процесу бота. PID=%s", os.getpid())
-
+    logging.info("Ініціалізація бази даних")
+    await asyncio.to_thread(database.init_db)
     try:
-        logging.info("Ініціалізація бази даних")
-        await asyncio.to_thread(database.init_db)
-        logging.info("Базу даних успішно ініціалізовано")
-
-        logging.info("Перевірка підключення до Telegram")
-        bot_info = await bot.get_me()
-        logging.info(
-            "Підключення до Telegram успішне. Бот: @%s (id=%s)",
-            bot_info.username,
-            bot_info.id,
-        )
-
-        logging.info(
-            "Запуск Telegram polling. PID=%s. Переконайтеся, що інший екземпляр бота не запущений",
-            os.getpid(),
-        )
+        logging.info("Запуск Telegram polling; перевірте, що працює лише один екземпляр бота")
         await dp.start_polling()
-
-    except Exception:
-        logging.exception("Критична помилка під час запуску або роботи Telegram polling")
-        raise
-
     finally:
-        logging.info("Завершення роботи Telegram polling")
+        logging.info("Зупинка Telegram polling")
         await bot.close()
-        logging.info("З'єднання з Telegram закрито")
 
 if __name__ == '__main__': # Виправлено синтаксис dunder-змінних
     import asyncio
