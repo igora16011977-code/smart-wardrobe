@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5f1">
+  <title>Моя шафа</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5f1;
+      --card: #ffffff;
+      --ink: #242321;
+      --muted: #85817b;
+      --line: #e9e5de;
+      --accent: #5e715b;
+      --accent-soft: #e8eee5;
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 0 0 calc(24px + env(safe-area-inset-bottom));
+    }
+    .page { width: min(100%, 760px); margin: 0 auto; padding: 22px 16px 0; }
+    header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:22px; }
+    .eyebrow { color:var(--muted); font-size:12px; letter-spacing:.12em; text-transform:uppercase; margin:0 0 6px; }
+    h1 { font-size:30px; line-height:1.1; margin:0; letter-spacing:-.04em; font-weight:750; }
+    .count { flex:0 0 auto; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:8px 12px; font-size:13px; font-weight:650; }
+    .intro { color:var(--muted); font-size:14px; line-height:1.45; margin:9px 0 0; }
+    .filters { display:flex; gap:8px; overflow-x:auto; padding:2px 0 14px; scrollbar-width:none; }
+    .filters::-webkit-scrollbar { display:none; }
+    .filter {
+      border:1px solid var(--line); background:var(--card); color:#5d5953;
+      border-radius:999px; padding:10px 15px; white-space:nowrap;
+      font-size:13px; font-weight:650; cursor:pointer;
+    }
+    .filter.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .status {
+      display:none; padding:13px 15px; margin:4px 0 16px; border-radius:14px;
+      background:#fff; color:#625e58; font-size:14px; line-height:1.45;
+      border:1px solid var(--line);
+    }
+    .status.show { display:block; }
+    .status.error { background:#fff1ef; border-color:#f1d2cc; color:#8b3529; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .item { min-width:0; overflow:hidden; background:var(--card); border:1px solid var(--line); border-radius:var(--radius); }
+    .photo-wrap { aspect-ratio:4/5; background:#eeece7; position:relative; overflow:hidden; }
+    .photo { width:100%; height:100%; object-fit:cover; display:block; }
+    .photo-placeholder { position:absolute; inset:0; display:grid; place-items:center; color:#aaa49a; font-size:34px; }
+    .item-info { padding:12px 12px 14px; }
+    .category { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); font-weight:750; margin:0 0 5px; }
+    .description { font-size:13px; line-height:1.4; margin:0; overflow-wrap:anywhere; }
+    .empty { grid-column:1/-1; text-align:center; padding:44px 20px; background:#fff; border:1px dashed #d9d3c9; border-radius:var(--radius); }
+    .empty-icon { font-size:38px; margin-bottom:10px; }
+    .empty h2 { font-size:17px; margin:0 0 7px; }
+    .empty p { color:var(--muted); font-size:13px; line-height:1.5; margin:0; }
+    .spinner { width:22px; height:22px; border:2px solid #d9ded6; border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .footer { color:#a19b91; font-size:11px; text-align:center; padding:22px 0 4px; }
+    @media (min-width:600px) { .grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .page { padding:30px 22px 0; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <p class="eyebrow">Шо одіти? · smart wardrobe</p>
+        <h1>Моя шафа</h1>
+        <p class="intro">Усі твої речі — в одному зручному місці.</p>
+      </div>
+      <div class="count" id="count">0 речей</div>
+    </header>
+
+    <nav class="filters" aria-label="Категорії гардероба">
+      <button class="filter active" data-category="все">Усе</button>
+      <button class="filter" data-category="верх">Верх</button>
+      <button class="filter" data-category="низ">Низ</button>
+      <button class="filter" data-category="взуття">Взуття</button>
+      <button class="filter" data-category="аксесуари">Аксесуари</button>
+    </nav>
+
+    <div class="status show" id="status"><span class="spinner"></span>Завантажую гардероб…</div>
+    <section class="grid" id="grid" aria-live="polite"></section>
+    <div class="footer">Твій гардероб завжди під рукою</div>
+  </main>
+
+  <script>
+    // Після створення Render Static Site сюди буде внесено адресу API-сервісу.
+    const API_BASE = "https://YOUR-RENDER-SERVICE.onrender.com";
+
+    const tg = window.Telegram?.WebApp;
+    const grid = document.getElementById("grid");
+    const statusBox = document.getElementById("status");
+    const countBox = document.getElementById("count");
+    const filterButtons = [...document.querySelectorAll(".filter")];
+    let currentCategory = "все";
+    let imageObjectUrls = [];
+
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      try { tg.setHeaderColor("#f7f5f1"); tg.setBackgroundColor("#f7f5f1"); } catch (_) {}
+    }
+
+    function showStatus(message, isError = false) {
+      statusBox.className = "status show" + (isError ? " error" : "");
+      statusBox.textContent = message;
+    }
+    function hideStatus() { statusBox.className = "status"; }
+    function revokeImages() {
+      imageObjectUrls.forEach(url => URL.revokeObjectURL(url));
+      imageObjectUrls = [];
+    }
+    function pluralItems(n) {
+      const mod10 = n % 10, mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return `${n} річ`;
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} речі`;
+      return `${n} речей`;
+    }
+    function categoryLabel(value) {
+      return ({верх:"Верх", низ:"Низ", взуття:"Взуття", аксесуари:"Аксесуари"})[value] || value || "Річ";
+    }
+    function renderItems(items) {
+      revokeImages();
+      grid.replaceChildren();
+      countBox.textContent = pluralItems(items.length);
+
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML = '<div class="empty-icon">🧺</div><h2>Тут поки порожньо</h2><p>У цій категорії ще немає речей. Додай фото через Telegram-бота — і вони з’являться тут.</p>';
+        grid.appendChild(empty);
+        return;
+      }
+
+      for (const item of items) {
+        const card = document.createElement("article");
+        card.className = "item";
+        const wrap = document.createElement("div");
+        wrap.className = "photo-wrap";
+        const placeholder = document.createElement("div");
+        placeholder.className = "photo-placeholder";
+        placeholder.textContent = "👕";
+        wrap.appendChild(placeholder);
+
+        const img = document.createElement("img");
+        img.className = "photo";
+        img.alt = item.description || "Річ із гардероба";
+        img.loading = "lazy";
+        img.style.display = "none";
+        wrap.appendChild(img);
+
+        const info = document.createElement("div");
+        info.className = "item-info";
+        const cat = document.createElement("p");
+        cat.className = "category";
+        cat.textContent = categoryLabel(item.category);
+        const desc = document.createElement("p");
+        desc.className = "description";
+        desc.textContent = item.description || "Без опису";
+        info.append(cat, desc);
+        card.append(wrap, info);
+        grid.appendChild(card);
+
+        fetch(`${API_BASE}${item.photo_url}`, {
+          headers: { "Authorization": `tma ${tg.initData}` }
+        })
+          .then(response => {
+            if (!response.ok) throw new Error("Не вдалося завантажити фото");
+            return response.blob();
+          })
+          .then(blob => {
+            const objectUrl = URL.createObjectURL(blob);
+            imageObjectUrls.push(objectUrl);
+            img.onload = () => { placeholder.style.display = "none"; img.style.display = "block"; };
+            img.src = objectUrl;
+          })
+          .catch(() => { placeholder.textContent = "📷"; });
+      }
+    }
+
+    async function loadWardrobe() {
+      if (!tg || !tg.initData) {
+        countBox.textContent = "—";
+        showStatus("Відкрий цю сторінку з кнопки вебшафи всередині Telegram, щоб підтвердити доступ до свого гардероба.", true);
+        return;
+      }
+      if (API_BASE.includes("YOUR-RENDER-SERVICE")) {
+        showStatus("Інтерфейс готовий. Після розгортання API на Render потрібно буде вказати його адресу.", true);
+        return;
+      }
+
+      showStatus("Завантажую гардероб…");
+      try {
+        const response = await fetch(`${API_BASE}/api/wardrobe?category=${encodeURIComponent(currentCategory)}`, {
+          headers: { "Authorization": `tma ${tg.initData}` }
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          if (response.status === 401) throw new Error("Не вдалося підтвердити Telegram-сесію. Закрий вебшафу та відкрий її знову через бота.");
+          throw new Error(data.error || "Помилка завантаження гардероба.");
+        }
+        hideStatus();
+        renderItems(data.items || []);
+      } catch (error) {
+        countBox.textContent = "—";
+        showStatus(error.message || "Не вдалося завантажити гардероб.", true);
+      }
+    }
+
+    filterButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        if (button.dataset.category === currentCategory) return;
+        currentCategory = button.dataset.category;
+        filterButtons.forEach(b => b.classList.toggle("active", b === button));
+        loadWardrobe();
+      });
+    });
+
+    loadWardrobe();
+  </script>
+</body>
+</html>
