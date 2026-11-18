@@ -143,7 +143,8 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
-        if path == "/health":
+        # Зберігаємо стару поведінку кореневого URL для Render/UptimeRobot.
+        if path in ("/", "/health"):
             self._send_bytes(200, b"OK", "text/plain; charset=utf-8")
             return
 
