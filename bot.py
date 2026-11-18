@@ -57,22 +57,24 @@ class TripStates(StatesGroup):
 class EditStates(StatesGroup):
     waiting_for_new_description = State()
 
-# Головне естетичне меню бота 🕊️
+# Головне меню бота 🕊️
+WEB_APP_URL = (os.getenv("WEB_APP_URL") or "").strip()
+
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"))
-
-# Якщо WEB_APP_URL задано в Render, кнопка відкриває Telegram Mini App.
-# Якщо змінної ще немає, зберігаємо стару поведінку кнопки Telegram-галереї.
-WEB_APP_URL = (os.getenv("WEB_APP_URL") or "").strip()
-if WEB_APP_URL:
-    main_keyboard.row(
-        KeyboardButton("👗 Візуальна шафа", web_app=WebAppInfo(url=WEB_APP_URL))
-    )
-else:
-    main_keyboard.row(KeyboardButton("👗 Візуальна шафа"))
-
 main_keyboard.row(KeyboardButton("🧳 План подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
 main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
+
+# Telegram Mini App запускаємо через InlineKeyboardButton:
+# саме цей спосіб передає Telegram.WebApp.initData для авторизації.
+web_app_keyboard = None
+if WEB_APP_URL:
+    web_app_keyboard = InlineKeyboardMarkup().add(
+        InlineKeyboardButton(
+            "👗 Відкрити візуальну шафу",
+            web_app=WebAppInfo(url=WEB_APP_URL)
+        )
+    )
 
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -85,6 +87,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=main_keyboard,
         parse_mode="Markdown"
     )
+    if web_app_keyboard:
+        await message.answer(
+            "👗 Відкрий свою візуальну шафу:",
+            reply_markup=web_app_keyboard
+        )
 
 # --- БЛОК 1: 🌤️ ЩО ВДЯГНУТИ СЬОГОДНІ ---
 @dp.message_handler(Text(equals="🌤️ Що вдягнути сьогодні?"), state="*")
