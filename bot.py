@@ -3,11 +3,11 @@ import logging
 import threading
 import os
 from io import BytesIO
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters.builtin import Text
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -16,37 +16,14 @@ import config
 import database
 import weather
 import ai_stylist
-
-
-class SafeHandler(BaseHTTPRequestHandler):
-    """Мінімальний health-check endpoint для Render та UptimeRobot."""
-
-    def _send_ok(self, include_body=True):
-        body = b"OK"
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        if include_body:
-            self.wfile.write(body)
-
-    def do_GET(self):
-        self._send_ok(include_body=True)
-
-    def do_HEAD(self):
-        # HEAD має повертати ті самі заголовки, що й GET, але без тіла відповіді.
-        self._send_ok(include_body=False)
-
-    def log_message(self, format, *args):
-        logging.info("HTTP health check: %s", format % args)
+from web_server import WardrobeWebHandler
 
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
     try:
         # ThreadingHTTPServer не блокує наступні перевірки паралельними запитами.
-        server = ThreadingHTTPServer(("0.0.0.0", port), SafeHandler)
+        server = ThreadingHTTPServer(("0.0.0.0", port), WardrobeWebHandler)
         logging.info("HTTP health server запущено на 0.0.0.0:%s", port)
         server.serve_forever()
     except Exception:
@@ -82,7 +59,18 @@ class EditStates(StatesGroup):
 
 # Головне естетичне меню бота 🕊️
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"), KeyboardButton("👗 Візуальна шафа"))
+main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"))
+
+# Якщо WEB_APP_URL задано в Render, кнопка відкриває Telegram Mini App.
+# Якщо змінної ще немає, зберігаємо стару поведінку кнопки Telegram-галереї.
+WEB_APP_URL = (os.getenv("WEB_APP_URL") or "").strip()
+if WEB_APP_URL:
+    main_keyboard.row(
+        KeyboardButton("👗 Візуальна шафа", web_app=WebAppInfo(url=WEB_APP_URL))
+    )
+else:
+    main_keyboard.row(KeyboardButton("👗 Візуальна шафа"))
+
 main_keyboard.row(KeyboardButton("🧳 План подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
 main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
 
