@@ -252,30 +252,46 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             )
             photo_response.raise_for_status()
             photo_bytes = photo_response.content
+            header_type = (
+                photo_response.headers.get("Content-Type", "")
+                .split(";", 1)[0]
+                .strip()
+                .lower()
+            )
+            detected_type = _detect_image_content_type(photo_bytes)
+
+            # Діагностика: фіксуємо метадані та сигнатуру, але не самі фото
+            # і не Telegram file_id / токени.
+            LOG.info(
+                "Фото від Telegram: item_id=%s, status=%s, bytes=%s, "
+                "header_type=%r, detected_type=%r, first_bytes_hex=%s",
+                item_id,
+                photo_response.status_code,
+                len(photo_bytes),
+                header_type,
+                detected_type,
+                photo_bytes[:16].hex(),
+            )
+
             if not photo_bytes:
-                LOG.error("Telegram повернув порожній файл для file_id=%s", file_id)
+                LOG.error("Telegram повернув порожній файл для item_id=%s", item_id)
                 self._send_json(502, {"error": "empty_photo_file"})
                 return
 
-            # Telegram/CDN іноді повертає application/octet-stream,
-            # хоча вмістом є звичайне зображення. Перевіряємо сигнатуру файлу.
-            detected_type = _detect_image_content_type(photo_bytes)
-            if detected_type:
-                content_type = detected_type
-            else:
-                header_type = photo_response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-                if header_type.startswith("image/"):
-                    content_type = header_type
-                else:
-                    LOG.error(
-                        "Telegram повернув невідомий тип файлу: Content-Type=%r, перші байти=%r",
-                        header_type,
-                        photo_bytes[:24],
-                    )
-                    self._send_json(502, {"error": "invalid_photo_type"})
-                    return
+            # Не довіряємо лише HTTP-заголовку: він може називати не-JPEG
+            # вміст зображенням. Віддаємо файл тільки якщо сигнатура відома.
+            if not detected_type:
+                LOG.error(
+                    "Невідома сигнатура фото: item_id=%s, header_type=%r, "
+                    "first_bytes_hex=%s",
+                    item_id,
+                    header_type,
+                    photo_bytes[:32].hex(),
+                )
+                self._send_json(502, {"error": "invalid_photo_signature"})
+                return
 
-            self._send_bytes(200, photo_bytes, content_type)
+            self._send_bytes(200, photo_bytes, detected_type)
         except requests.RequestException:
             LOG.exception("Помилка отримання фото з Telegram")
             self._send_json(502, {"error": "photo_service_error"})
