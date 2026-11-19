@@ -13,6 +13,7 @@ HTTP-сервера bot.py, а не запускати другий сервер
 """
 
 import hashlib
+from io import BytesIO
 import hmac
 import json
 import logging
@@ -22,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlparse
 
 import requests
+from PIL import Image, UnidentifiedImageError
 
 import config
 import database
@@ -278,8 +280,9 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 self._send_json(502, {"error": "empty_photo_file"})
                 return
 
-            # Не довіряємо лише HTTP-заголовку: він може називати не-JPEG
-            # вміст зображенням. Віддаємо файл тільки якщо сигнатура відома.
+            # Спочатку перевіряємо сигнатуру, а потім повністю декодуємо
+            # зображення через Pillow. Це відрізняє справний JPEG від даних,
+            # які лише починаються з JPEG-сигнатури.
             if not detected_type:
                 LOG.error(
                     "Невідома сигнатура фото: item_id=%s, header_type=%r, "
@@ -291,6 +294,36 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 self._send_json(502, {"error": "invalid_photo_signature"})
                 return
 
+            try:
+                with Image.open(BytesIO(photo_bytes)) as image:
+                    image_format = image.format
+                    image_size = image.size
+                    image.verify()
+                # verify() перевіряє структуру, але не декодує всі пікселі;
+                # тому повторно відкриваємо файл і виконуємо повне завантаження.
+                with Image.open(BytesIO(photo_bytes)) as image:
+                    image.load()
+                    image_format = image.format
+                    image_size = image.size
+            except (UnidentifiedImageError, OSError, ValueError) as exc:
+                LOG.exception(
+                    "Pillow не зміг декодувати фото: item_id=%s, "
+                    "detected_type=%s, bytes=%s, error=%s",
+                    item_id,
+                    detected_type,
+                    len(photo_bytes),
+                    exc,
+                )
+                self._send_json(502, {"error": "image_decode_failed"})
+                return
+
+            LOG.info(
+                "Фото успішно декодовано: item_id=%s, format=%s, size=%s, bytes=%s",
+                item_id,
+                image_format,
+                image_size,
+                len(photo_bytes),
+            )
             self._send_bytes(200, photo_bytes, detected_type)
         except requests.RequestException:
             LOG.exception("Помилка отримання фото з Telegram")
