@@ -430,20 +430,30 @@ async def handle_clothing_photo(message: types.Message):
 
         logging.info("Gemini завершив аналіз: %s", description)
 
-        await asyncio.to_thread(
+        was_added = await asyncio.to_thread(
             database.add_clothing,
             user_id,
             photo.file_id,
             description
         )
 
-        logging.info("Річ збережено в базі даних")
-
-        await status.edit_text(
-            f"✨ Річ успішно додано!\n\n"
-            f"Автоматичний аналіз: {description}\n"
-            f"Тепер вона бере участь у підборах образу! 🎀"
-        )
+        if was_added:
+            logging.info("Річ збережено в базі даних")
+            await status.edit_text(
+                f"✨ Річ успішно додано!\n\n"
+                f"Автоматичний аналіз: {description}\n"
+                f"Тепер вона бере участь у підборах образу! 🎀"
+            )
+        else:
+            logging.info(
+                "Повторне фото не додано: user_id=%s, file_id=%s",
+                user_id,
+                photo.file_id,
+            )
+            await status.edit_text(
+                "ℹ️ Це фото вже є у твоєму гардеробі. "
+                "Повторно додавати його не потрібно! 💗"
+            )
 
     except asyncio.TimeoutError:
         logging.error("Перевищено час очікування Gemini")
