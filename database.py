@@ -113,8 +113,8 @@ def _detect_category(description: str) -> str:
     return "верх"
 
 
-def add_clothing(user_id: int, file_id: str, description: str) -> None:
-    """Додає річ до гардероба користувача."""
+def add_clothing(user_id: int, file_id: str, description: str) -> bool:
+    """Додає річ до гардероба; False повертається, якщо фото вже є у цього користувача."""
     if not file_id:
         raise ValueError("Не передано Telegram file_id фотографії.")
     description = (description or "").strip()
@@ -124,6 +124,20 @@ def add_clothing(user_id: int, file_id: str, description: str) -> None:
     category = _detect_category(description)
     with _db_session() as conn:
         with conn.cursor() as cursor:
+            # Перевіряємо саме в межах користувача: однакові фото різних
+            # користувачів не повинні блокувати додавання одне одному.
+            cursor.execute(
+                """
+                SELECT 1
+                FROM clothes
+                WHERE user_id = %s AND file_id = %s
+                LIMIT 1
+                """,
+                (int(user_id), file_id),
+            )
+            if cursor.fetchone():
+                return False
+
             cursor.execute(
                 """
                 INSERT INTO clothes (user_id, file_id, description, category)
@@ -131,6 +145,7 @@ def add_clothing(user_id: int, file_id: str, description: str) -> None:
                 """,
                 (int(user_id), file_id, description, category),
             )
+            return True
 
 
 def get_user_wardrobe(user_id: int, category: str = "все"):
