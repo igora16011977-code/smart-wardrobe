@@ -123,6 +123,20 @@
     function categoryLabel(value) {
       return ({верх:"Верх", низ:"Низ", взуття:"Взуття", аксесуари:"Аксесуари"})[value] || value || "Річ";
     }
+    async function runPhotoQueue(tasks, limit = 4) {
+      let nextTask = 0;
+      const workers = Array.from(
+        { length: Math.min(limit, tasks.length) },
+        async () => {
+          while (nextTask < tasks.length) {
+            const task = tasks[nextTask++];
+            await task();
+          }
+        }
+      );
+      await Promise.all(workers);
+    }
+
     function renderItems(items) {
       revokeImages();
       grid.replaceChildren();
@@ -135,6 +149,8 @@
         grid.appendChild(empty);
         return;
       }
+
+      const photoTasks = [];
 
       for (const item of items) {
         const card = document.createElement("article");
@@ -149,7 +165,7 @@
         const img = document.createElement("img");
         img.className = "photo";
         img.alt = item.description || "Річ із гардероба";
-        img.loading = "lazy";
+        img.loading = "eager";
         img.style.display = "none";
         wrap.appendChild(img);
 
@@ -165,19 +181,18 @@
         card.append(wrap, info);
         grid.appendChild(card);
 
-        fetch(`${API_BASE}${item.photo_url}`, {
-          headers: { "Authorization": `tma ${tg.initData}` }
-        })
-          .then(async response => {
+        photoTasks.push(async () => {
+          try {
+            const response = await fetch(`${API_BASE}${item.photo_url}`, {
+              headers: { "Authorization": `tma ${tg.initData}` }
+            });
             const contentType = response.headers.get("content-type") || "невідомий тип";
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}; ${contentType}`);
             }
             const blob = await response.blob();
             if (!blob.size) throw new Error(`Порожня відповідь; ${contentType}`);
-            return { blob, contentType };
-          })
-          .then(({ blob, contentType }) => {
+
             const objectUrl = URL.createObjectURL(blob);
             imageObjectUrls.push(objectUrl);
             img.onload = () => {
@@ -191,14 +206,17 @@
               placeholder.style.textAlign = "center";
             };
             img.src = objectUrl;
-          })
-          .catch(error => {
+          } catch (error) {
             placeholder.textContent = `Помилка фото: ${error.message}`;
             placeholder.style.fontSize = "12px";
             placeholder.style.padding = "10px";
             placeholder.style.textAlign = "center";
-          });
+          }
+        });
       }
+
+      // Не більше чотирьох одночасних запитів до API фотографій.
+      runPhotoQueue(photoTasks, 4);
     }
 
     async function loadWardrobe() {
