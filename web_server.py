@@ -38,6 +38,23 @@ def _json_bytes(payload):
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
+def _detect_image_content_type(data):
+    """Визначає MIME-тип за сигнатурою байтів, а не лише HTTP-заголовком."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data.startswith(b"BM"):
+        return "image/bmp"
+    if data.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    return None
+
+
 def validate_telegram_init_data(init_data, bot_token):
     """
     Перевіряє підпис Telegram Mini App initData.
@@ -234,11 +251,31 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 timeout=30,
             )
             photo_response.raise_for_status()
-            content_type = photo_response.headers.get("Content-Type", "image/jpeg")
-            if not content_type.startswith("image/"):
-                self._send_json(502, {"error": "invalid_photo_type"})
+            photo_bytes = photo_response.content
+            if not photo_bytes:
+                LOG.error("Telegram повернув порожній файл для file_id=%s", file_id)
+                self._send_json(502, {"error": "empty_photo_file"})
                 return
-            self._send_bytes(200, photo_response.content, content_type)
+
+            # Telegram/CDN іноді повертає application/octet-stream,
+            # хоча вмістом є звичайне зображення. Перевіряємо сигнатуру файлу.
+            detected_type = _detect_image_content_type(photo_bytes)
+            if detected_type:
+                content_type = detected_type
+            else:
+                header_type = photo_response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                if header_type.startswith("image/"):
+                    content_type = header_type
+                else:
+                    LOG.error(
+                        "Telegram повернув невідомий тип файлу: Content-Type=%r, перші байти=%r",
+                        header_type,
+                        photo_bytes[:24],
+                    )
+                    self._send_json(502, {"error": "invalid_photo_type"})
+                    return
+
+            self._send_bytes(200, photo_bytes, content_type)
         except requests.RequestException:
             LOG.exception("Помилка отримання фото з Telegram")
             self._send_json(502, {"error": "photo_service_error"})
