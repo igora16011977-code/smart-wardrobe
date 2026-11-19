@@ -434,7 +434,8 @@ async def handle_clothing_photo(message: types.Message):
             database.add_clothing,
             user_id,
             photo.file_id,
-            description
+            description,
+            photo.file_unique_id
         )
 
         if was_added:
