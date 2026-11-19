@@ -63,6 +63,19 @@ def init_db() -> None:
                 )
                 """
             )
+            # Зберігаємо стабільний Telegram ID фотографії. Для старих рядків
+            # значення залишиться NULL; нові записи захищені від повторів.
+            cursor.execute(
+                "ALTER TABLE clothes ADD COLUMN IF NOT EXISTS file_unique_id TEXT"
+            )
+            cursor.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                    uq_clothes_user_file_unique_id
+                ON clothes (user_id, file_unique_id)
+                WHERE file_unique_id IS NOT NULL
+                """
+            )
 
 
 def _detect_category(description: str) -> str:
@@ -113,8 +126,13 @@ def _detect_category(description: str) -> str:
     return "верх"
 
 
-def add_clothing(user_id: int, file_id: str, description: str) -> bool:
-    """Додає річ до гардероба; False повертається, якщо фото вже є у цього користувача."""
+def add_clothing(
+    user_id: int,
+    file_id: str,
+    description: str,
+    file_unique_id: Optional[str] = None,
+) -> bool:
+    """Додає річ; повертає False, якщо це фото вже є в гардеробі користувача."""
     if not file_id:
         raise ValueError("Не передано Telegram file_id фотографії.")
     description = (description or "").strip()
@@ -124,15 +142,21 @@ def add_clothing(user_id: int, file_id: str, description: str) -> bool:
     category = _detect_category(description)
     with _db_session() as conn:
         with conn.cursor() as cursor:
-            # Перевіряємо саме в межах користувача: однакові фото різних
-            # користувачів не повинні блокувати додавання одне одному.
+            # file_unique_id стабільний між повторними надсиланнями фото.
+            if file_unique_id:
+                cursor.execute(
+                    """SELECT 1 FROM clothes
+                       WHERE user_id = %s AND file_unique_id = %s LIMIT 1""",
+                    (int(user_id), file_unique_id),
+                )
+                if cursor.fetchone():
+                    return False
+
+            # Додаткова сумісна перевірка для тих випадків, коли Telegram
+            # повернув той самий file_id.
             cursor.execute(
-                """
-                SELECT 1
-                FROM clothes
-                WHERE user_id = %s AND file_id = %s
-                LIMIT 1
-                """,
+                """SELECT 1 FROM clothes
+                   WHERE user_id = %s AND file_id = %s LIMIT 1""",
                 (int(user_id), file_id),
             )
             if cursor.fetchone():
@@ -140,12 +164,15 @@ def add_clothing(user_id: int, file_id: str, description: str) -> bool:
 
             cursor.execute(
                 """
-                INSERT INTO clothes (user_id, file_id, description, category)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO clothes
+                    (user_id, file_id, file_unique_id, description, category)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+                RETURNING id
                 """,
-                (int(user_id), file_id, description, category),
+                (int(user_id), file_id, file_unique_id, description, category),
             )
-            return True
+            return cursor.fetchone() is not None
 
 
 def get_user_wardrobe(user_id: int, category: str = "все"):
