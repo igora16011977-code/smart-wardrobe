@@ -128,23 +128,14 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Max-Age", "600")
 
     def _send_bytes(self, status, body, content_type="application/json; charset=utf-8"):
-        """Надсилає відповідь; спокійно обробляє закриття з'єднання клієнтом."""
-        try:
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self._cors_headers()
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(body)
-            return True
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-            # Браузер міг скасувати запит (наприклад, під час швидкого
-            # перемикання категорій або закриття Mini App). Це не помилка БД,
-            # Telegram чи декодування фотографії; повторно відповідати не можна.
-            LOG.debug("Клієнт перервав HTTP-з'єднання під час передавання відповіді")
-            return False
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self._cors_headers()
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _send_json(self, status, payload):
         self._send_bytes(status, _json_bytes(payload))
