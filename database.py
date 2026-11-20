@@ -68,6 +68,11 @@ def init_db() -> None:
             cursor.execute(
                 "ALTER TABLE clothes ADD COLUMN IF NOT EXISTS file_unique_id TEXT"
             )
+            # Додаткові поля для картки речі у вебгардеробі.
+            cursor.execute("ALTER TABLE clothes ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''")
+            cursor.execute("ALTER TABLE clothes ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT ''")
+            cursor.execute("ALTER TABLE clothes ADD COLUMN IF NOT EXISTS material TEXT NOT NULL DEFAULT ''")
+            cursor.execute("ALTER TABLE clothes ADD COLUMN IF NOT EXISTS style TEXT NOT NULL DEFAULT ''")
             cursor.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS
@@ -264,3 +269,52 @@ def save_user_city(user_id: int, city: str) -> None:
                 """,
                 (int(user_id), city),
             )
+
+
+def get_user_wardrobe_details(user_id: int, category: str = "все"):
+    """Повертає розширені дані речей для вебінтерфейсу."""
+    with _db_session() as conn:
+        with conn.cursor() as cursor:
+            if (category or "все").strip().casefold() == "все":
+                cursor.execute(
+                    """SELECT id, title, description, category, color, material, style
+                       FROM clothes WHERE user_id = %s ORDER BY id""",
+                    (int(user_id),),
+                )
+            else:
+                cursor.execute(
+                    """SELECT id, title, description, category, color, material, style
+                       FROM clothes WHERE user_id = %s AND category = %s ORDER BY id""",
+                    (int(user_id), category.strip().casefold()),
+                )
+            return cursor.fetchall()
+
+
+def update_clothing_details(
+    item_id: int, user_id: int, title: str, description: str,
+    category: str, color: str = "", material: str = "", style: str = "",
+) -> bool:
+    """Оновлює поля картки лише для речі, що належить користувачу."""
+    title = (title or "").strip()
+    description = (description or "").strip()
+    category = (category or "").strip().casefold()
+    color = (color or "").strip()
+    material = (material or "").strip()
+    style = (style or "").strip()
+    if not title:
+        raise ValueError("Назва речі не може бути порожньою.")
+    if not description:
+        raise ValueError("Опис речі не може бути порожнім.")
+    if category not in {"верх", "низ", "взуття", "аксесуари"}:
+        raise ValueError("Невідома категорія речі.")
+    with _db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """UPDATE clothes
+                   SET title = %s, description = %s, category = %s,
+                       color = %s, material = %s, style = %s
+                   WHERE id = %s AND user_id = %s""",
+                (title, description, category, color, material, style,
+                 int(item_id), int(user_id)),
+            )
+            return cursor.rowcount > 0
