@@ -420,30 +420,53 @@ async def handle_clothing_photo(message: types.Message):
 
         logging.info("Починаю аналіз Gemini")
 
-        description = await asyncio.wait_for(
+        clothing = await asyncio.wait_for(
             asyncio.to_thread(
-                ai_stylist.analyze_clothing_image,
+                ai_stylist.analyze_clothing_image_structured,
                 image_bytes
             ),
             timeout=150
         )
 
-        logging.info("Gemini завершив аналіз: %s", description)
+        title = clothing.get("title", "").strip()
+        description = clothing.get("description", "").strip()
+        category = clothing.get("category", "").strip()
+        color = clothing.get("color", "").strip()
+        material = clothing.get("material", "").strip()
+        style = clothing.get("style", "").strip()
+
+        logging.info(
+            "Gemini завершив аналіз: title=%s, category=%s, color=%s, material=%s, style=%s",
+            title, category, color, material, style
+        )
 
         was_added = await asyncio.to_thread(
             database.add_clothing,
             user_id,
             photo.file_id,
             description,
-            photo.file_unique_id
+            photo.file_unique_id,
+            title,
+            category,
+            color,
+            material,
+            style,
         )
 
         if was_added:
-            logging.info("Річ збережено в базі даних")
+            logging.info("Річ збережено в базі даних з усіма характеристиками")
+            details = [
+                f"Назва: {title}",
+                f"Категорія: {category or 'не визначено'}",
+                f"Колір: {color or 'не визначено'}",
+                f"Матеріал: {material or 'не визначено'}",
+                f"Фасон: {style or 'не визначено'}",
+            ]
             await status.edit_text(
-                f"✨ Річ успішно додано!\n\n"
-                f"Автоматичний аналіз: {description}\n"
-                f"Тепер вона бере участь у підборах образу! 🎀"
+                "✨ Річ успішно додано!\n\n"
+                + "\n".join(details)
+                + f"\n\nОпис: {description}\n"
+                + "Тепер вона бере участь у підборах образу! 🎀"
             )
         else:
             logging.info(
