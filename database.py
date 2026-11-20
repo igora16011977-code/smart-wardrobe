@@ -136,15 +136,35 @@ def add_clothing(
     file_id: str,
     description: str,
     file_unique_id: Optional[str] = None,
+    title: str = "",
+    category: str = "",
+    color: str = "",
+    material: str = "",
+    style: str = "",
 ) -> bool:
-    """Додає річ; повертає False, якщо це фото вже є в гардеробі користувача."""
+    """Додає річ з характеристиками Gemini.
+
+    Повертає False, якщо фото вже є в гардеробі користувача.
+    Перші чотири параметри збережені в попередньому порядку для
+    сумісності зі старими викликами add_clothing().
+    """
     if not file_id:
         raise ValueError("Не передано Telegram file_id фотографії.")
+
     description = (description or "").strip()
     if not description:
         raise ValueError("Опис речі не може бути порожнім.")
 
-    category = _detect_category(description)
+    title = (title or "").strip() or description[:120]
+    category = (category or "").strip().casefold()
+    if category not in {"верх", "низ", "взуття", "аксесуари"}:
+        # Для старих викликів без категорії зберігаємо попередню логіку.
+        category = _detect_category(description)
+
+    color = (color or "").strip()
+    material = (material or "").strip()
+    style = (style or "").strip()
+
     with _db_session() as conn:
         with conn.cursor() as cursor:
             # file_unique_id стабільний між повторними надсиланнями фото.
@@ -157,8 +177,7 @@ def add_clothing(
                 if cursor.fetchone():
                     return False
 
-            # Додаткова сумісна перевірка для тих випадків, коли Telegram
-            # повернув той самий file_id.
+            # Додаткова сумісна перевірка за Telegram file_id.
             cursor.execute(
                 """SELECT 1 FROM clothes
                    WHERE user_id = %s AND file_id = %s LIMIT 1""",
@@ -170,12 +189,14 @@ def add_clothing(
             cursor.execute(
                 """
                 INSERT INTO clothes
-                    (user_id, file_id, file_unique_id, description, category)
-                VALUES (%s, %s, %s, %s, %s)
+                    (user_id, file_id, file_unique_id, title, description,
+                     category, color, material, style)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 RETURNING id
                 """,
-                (int(user_id), file_id, file_unique_id, description, category),
+                (int(user_id), file_id, file_unique_id, title, description,
+                 category, color, material, style),
             )
             return cursor.fetchone() is not None
 
