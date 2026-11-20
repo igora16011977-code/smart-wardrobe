@@ -3,6 +3,7 @@
 Усі текстові функції та аналіз фотографій використовують Gemini.
 Збережено публічні назви функцій і сигнатури, які викликає bot.py.
 """
+import json
 import re
 import os
 import time
@@ -105,8 +106,8 @@ def _detect_image_mime(image_bytes: bytes) -> str:
     )
 
 
-def analyze_clothing_image(image_bytes: bytes) -> str:
-    """Аналізує фото одягу та повертає короткий фактичний опис українською."""
+def analyze_clothing_image_structured(image_bytes: bytes) -> dict[str, str]:
+    """Аналізує фото одягу та повертає структуровані характеристики українською."""
     if not isinstance(image_bytes, (bytes, bytearray)) or not image_bytes:
         raise ValueError("Не отримано дані фотографії.")
 
@@ -118,14 +119,18 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
 
         prompt = (
             "Ти — уважний асистент для каталогізації одягу. Проаналізуй прикріплену "
-            "фотографію і створи короткий фактичний опис українською мовою для "
-            "особистого гардероба.\n"
-            "Визнач: 1) тип речі; 2) основний видимий колір і відтінок; "
-            "3) фасон/крій; 4) видимий матеріал або фактуру, лише якщо це можна "
-            "обґрунтовано визначити.\n"
-            "Не вигадуй бренд, склад тканини, сезон, призначення чи деталі, яких "
-            "не видно. Якщо колір неоднозначний, прямо зазнач це.\n"
-            "Поверни лише один опис одним реченням, без вступу, списків та емодзі."
+            "фотографію та поверни результат СТРОГО як JSON-об'єкт українською мовою "
+            "з такими ключами: title, description, category, color, material, style.\n"
+            "Вимоги до полів:\n"
+            "- title: коротка конкретна назва речі (наприклад, «Світло-сірі широкі джинси»).\n"
+            "- description: одне-два речення з фактичним описом видимих особливостей.\n"
+            "- category: лише одне значення з переліку: «верх», «низ», «взуття», «аксесуари».\n"
+            "- color: основний видимий колір і відтінок.\n"
+            "- material: видимий матеріал або фактура; не визначай склад тканини лише за виглядом.\n"
+            "- style: фасон або крій, який можна встановити за фото.\n"
+            "Не вигадуй бренд, склад тканини, сезон, призначення чи деталі, яких не видно. "
+            "Якщо характеристику неможливо достовірно визначити, поверни для неї порожній рядок. "
+            "Не додавай Markdown, пояснень або тексту поза JSON."
         )
         image_part = types.Part.from_bytes(data=bytes(image_bytes), mime_type=mime_type)
         model_name = (
@@ -139,12 +144,41 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
                 response = client.models.generate_content(
                     model=model_name,
                     contents=[prompt, image_part],
-                    config=types.GenerateContentConfig(max_output_tokens=160),
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        max_output_tokens=400,
+                        response_mime_type="application/json",
+                    ),
                 )
-                description = (getattr(response, "text", None) or "").strip()
-                if not description:
-                    raise RuntimeError("Gemini не повернув опис фотографії.")
-                return description.strip('"').strip()
+                raw_result = (getattr(response, "text", None) or "").strip()
+                if not raw_result:
+                    raise RuntimeError("Gemini не повернув характеристик фотографії.")
+
+                # Деякі моделі можуть обгорнути JSON у Markdown-код-блок.
+                raw_result = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_result, flags=re.IGNORECASE)
+                data = json.loads(raw_result)
+                if not isinstance(data, dict):
+                    raise ValueError("Gemini повернув результат не у форматі JSON-об'єкта.")
+
+                fields = ("title", "description", "category", "color", "material", "style")
+                result = {
+                    field: str(data.get(field) or "").strip()
+                    for field in fields
+                }
+                allowed_categories = {"верх", "низ", "взуття", "аксесуари"}
+                category = result["category"].casefold()
+                if category not in allowed_categories:
+                    result["category"] = ""
+                else:
+                    result["category"] = category
+
+                if not result["title"]:
+                    result["title"] = result["description"][:80].strip()
+                if not result["description"]:
+                    result["description"] = result["title"]
+                if not result["title"] and not result["description"]:
+                    raise ValueError("Gemini не визначив тип речі.")
+                return result
             except Exception as exc:
                 if not _is_retryable_error(exc) or attempt >= len(_RETRY_DELAYS):
                     raise
@@ -159,6 +193,12 @@ def analyze_clothing_image(image_bytes: bytes) -> str:
         raise RuntimeError(f"Не вдалося розпізнати одяг через Gemini: {exc}") from exc
 
     raise RuntimeError("Не вдалося розпізнати одяг через Gemini.")
+
+
+def analyze_clothing_image(image_bytes: bytes) -> str:
+    """Сумісна зі старим bot.py функція: повертає лише опис речі."""
+    result = analyze_clothing_image_structured(image_bytes)
+    return result["description"]
 
 
 def _wardrobe_lines(wardrobe_items: Iterable[Any]) -> list[str]:
