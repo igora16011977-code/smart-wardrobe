@@ -124,7 +124,7 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", allowed)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
             self.send_header("Access-Control-Max-Age", "600")
 
     def _send_bytes(self, status, body, content_type="application/json; charset=utf-8"):
@@ -177,6 +177,22 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not_found"})
 
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        match = __import__("re").fullmatch(r"/api/wardrobe/(\d+)", parsed.path.rstrip("/"))
+        if not match:
+            self._send_json(404, {"error": "not_found"})
+            return
+        self._handle_update_item(int(match.group(1)))
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        match = __import__("re").fullmatch(r"/api/wardrobe/(\d+)", parsed.path.rstrip("/"))
+        if not match:
+            self._send_json(404, {"error": "not_found"})
+            return
+        self._handle_delete_item(int(match.group(1)))
+
     def do_HEAD(self):
         parsed = urlparse(self.path)
         if parsed.path.rstrip("/") in ("", "/health"):
@@ -198,19 +214,78 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            rows = database.get_user_wardrobe(user_id, category)
+            rows = database.get_user_wardrobe_details(user_id, category)
             items = [
                 {
-                    "id": int(row[2]),
-                    "description": row[1] or "",
+                    "id": int(row[0]),
+                    "title": row[1] or row[2] or "",
+                    "description": row[2] or "",
                     "category": row[3] or "",
-                    "photo_url": f"/api/photo/{int(row[2])}",
+                    "color": row[4] or "",
+                    "material": row[5] or "",
+                    "style": row[6] or "",
+                    "photo_url": f"/api/photo/{int(row[0])}",
                 }
                 for row in rows
             ]
             self._send_json(200, {"items": items, "count": len(items)})
         except Exception:
             LOG.exception("Помилка отримання гардероба")
+            self._send_json(500, {"error": "server_error"})
+
+    def _read_json_body(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length <= 0 or length > 16_384:
+                return None
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            return payload if isinstance(payload, dict) else None
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+
+    def _handle_update_item(self, item_id):
+        user_id = self._get_authenticated_user()
+        if user_id is None:
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        payload = self._read_json_body()
+        if payload is None:
+            self._send_json(400, {"error": "invalid_json"})
+            return
+        try:
+            updated = database.update_clothing_details(
+                item_id=item_id,
+                user_id=user_id,
+                title=payload.get("title", ""),
+                description=payload.get("description", ""),
+                category=payload.get("category", ""),
+                color=payload.get("color", ""),
+                material=payload.get("material", ""),
+                style=payload.get("style", ""),
+            )
+            if not updated:
+                self._send_json(404, {"error": "item_not_found"})
+                return
+            self._send_json(200, {"ok": True})
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except Exception:
+            LOG.exception("Помилка оновлення речі")
+            self._send_json(500, {"error": "server_error"})
+
+    def _handle_delete_item(self, item_id):
+        user_id = self._get_authenticated_user()
+        if user_id is None:
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        try:
+            deleted = database.delete_clothing(item_id, user_id)
+            if not deleted:
+                self._send_json(404, {"error": "item_not_found"})
+                return
+            self._send_json(200, {"ok": True})
+        except Exception:
+            LOG.exception("Помилка видалення речі")
             self._send_json(500, {"error": "server_error"})
 
     def _handle_photo(self, item_id_text):
