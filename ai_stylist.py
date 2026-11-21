@@ -708,7 +708,7 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
 
 
 
-def generate_wardrobe_outfits(wardrobe_items, outfit_count: int = 3) -> dict:
+def generate_wardrobe_outfits(wardrobe_items, outfit_count: int = 3, weather_info: dict | None = None) -> dict:
     """Підбирає кілька комплектів лише з речей, переданих із гардероба.
 
     Очікує список словників із полями id/title/description/category/color/material/style.
@@ -734,18 +734,36 @@ def generate_wardrobe_outfits(wardrobe_items, outfit_count: int = 3) -> dict:
         raise ValueError("Для підбору образу потрібно щонайменше дві речі в гардеробі.")
 
     outfit_count = max(1, min(int(outfit_count), 3))
+    weather_info = weather_info or {}
+    temp = weather_info.get("temp", weather_info.get("temperature"))
+    feels_like = weather_info.get("feels_like", weather_info.get("feels_like_temperature", temp))
+    condition = weather_info.get("description", weather_info.get("condition", "умови невідомі"))
+    wind = weather_info.get("wind", weather_info.get("wind_speed", "невідомо"))
+    humidity = weather_info.get("humidity", "невідомо")
+    rain = weather_info.get("rain", weather_info.get("precipitation", "невідомо"))
+    weather_text = (
+        f"Температура: {temp if temp is not None else 'невідомо'} °C; "
+        f"відчувається як: {feels_like if feels_like is not None else 'невідомо'} °C; "
+        f"умови: {condition}; вітер: {wind}; вологість: {humidity}; опади: {rain}."
+    )
     prompt = (
-        "Ти професійний стиліст. Склади " + str(outfit_count) +
-        " різні, гармонійні комплекти одягу ВИКЛЮЧНО з наведених нижче речей.\n"
-        "Не вигадуй одяг, взуття чи аксесуари. Не додавай речі, яких немає у списку.\n"
-        "Кожен комплект має містити щонайменше 2 різні речі; за можливості поєднуй верх, низ і взуття.\n"
-        "Враховуй сумісність кольорів, матеріалів і стилів. Не додавай аксесуари без потреби.\n"
-        "Поверни ЛИШЕ коректний JSON без Markdown і пояснень поза JSON у форматі:\n"
-        '{"outfits":[{"title":"Коротка назва","reason":"Чому речі пасують разом",'
-        '"item_ids":[1,2,3]}]}\n'
-        "Кожен item_ids має містити тільки числові ID зі списку нижче. Не повторюй один ID у комплекті.\n\n"
-        "ГАРДЕРОБ КОРИСТУВАЧА:\n" +
-        json.dumps(items, ensure_ascii=False)
+        "Ти професійний персональний стиліст. Склади " + str(outfit_count) +
+        " різні, практичні комплекти ВИКЛЮЧНО з наведених нижче речей користувача.\n"
+        "ОБОВ'ЯЗКОВО спочатку врахуй погоду: " + weather_text + "\n"
+        "Безпека комфорту важливіша за естетику. Якщо холодно, не пропонуй відкриті ноги, легкий верх або літнє взуття "
+        "без наявного теплого шару/верхнього одягу. За дощу або сильного вітру враховуй захист від опадів і вітру.\n"
+        "Не вигадуй речі й не додавай нічого, чого немає в переліку. Якщо для погоди бракує потрібного одягу, "
+        "не маскуй це літнім комплектом: обери найбільш теплий можливий варіант із наявного гардероба.\n"
+        "У кожному образі прагни до повного комплекту: верх + низ + взуття; додавай верхній одяг/теплий шар, "
+        "коли цього вимагає погода. Аксесуари (сумки, ремені, прикраси, окуляри, шарфи, шапки тощо) "
+        "обов'язково розглядай як важливу частину стилізації та додавай доречні наявні аксесуари, "
+        "але не вигадуй їх і не додавай випадкові. Якщо аксесуарів у шафі немає — не вигадуй.\n"
+        "Не повторюй той самий набір речей у різних образах, якщо є альтернативи.\n"
+        "Поверни ЛИШЕ JSON без Markdown. Поле reason залиш коротким (до 12 слів), без описів кожної речі. Формат:\n"
+        '{"outfits":[{"title":"Коротка назва","reason":"Коротка характеристика образу",'
+        '"item_ids":[1,2,3,4]}]}\n'
+        "Кожен item_ids містить лише числові ID зі списку. Не повторюй ID в одному образі.\n\n"
+        "ГАРДЕРОБ КОРИСТУВАЧА:\n" + json.dumps(items, ensure_ascii=False)
     )
 
     raw = _ask_gemini(prompt, max_tokens=1200)

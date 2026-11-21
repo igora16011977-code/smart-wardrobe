@@ -28,6 +28,7 @@ from PIL import Image, UnidentifiedImageError
 import config
 import database
 import ai_stylist
+import weather
 
 
 LOG = logging.getLogger("wardrobe_web")
@@ -35,6 +36,8 @@ TELEGRAM_API = "https://api.telegram.org"
 TELEGRAM_FILE_API = "https://api.telegram.org/file"
 DEFAULT_PORT = 8765
 MAX_INIT_DATA_AGE = 24 * 60 * 60  # 24 години
+OUTFIT_CUTOUT_CACHE = {}
+OUTFIT_CUTOUT_CACHE_LIMIT = 160
 
 
 def _json_bytes(payload):
@@ -174,6 +177,10 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
 
         if path.startswith("/api/photo/"):
             self._handle_photo(path.rsplit("/", 1)[-1])
+            return
+
+        if path.startswith("/api/outfit-photo/"):
+            self._handle_outfit_photo(path.rsplit("/", 1)[-1])
             return
 
         self._send_json(404, {"error": "not_found"})
@@ -409,7 +416,18 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-            result = ai_stylist.generate_wardrobe_outfits(wardrobe, outfit_count=3)
+            # Погода береться з того самого джерела, що й рекомендація "Що вдягнути сьогодні?".
+            city = database.get_user_city(user_id)
+            weather_info = weather.get_weather(city)
+            if not isinstance(weather_info, dict) or weather_info.get("temp", weather_info.get("temperature")) is None:
+                self._send_json(503, {
+                    "error": "weather_unavailable",
+                    "message": "Не вдалося отримати актуальну погоду. Спробуй трохи пізніше."
+                })
+                return
+            result = ai_stylist.generate_wardrobe_outfits(
+                wardrobe, outfit_count=3, weather_info=weather_info
+            )
             items_by_id = {item["id"]: item for item in wardrobe}
             safe_outfits = []
             for outfit in result.get("outfits", []):
@@ -420,12 +438,11 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                         continue
                     selected.append({
                         "id": item["id"], "title": item["title"] or item["description"] or "Річ",
-                        "category": item["category"], "photo_url": f"/api/photo/{item['id']}",
+                        "category": item["category"], "photo_url": f"/api/outfit-photo/{item['id']}",
                     })
                 if len(selected) >= 2:
                     safe_outfits.append({
                         "title": outfit.get("title", "Образ"),
-                        "reason": outfit.get("reason", ""),
                         "items": selected,
                     })
 
@@ -439,6 +456,95 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 "error": "outfit_generation_failed",
                 "message": "Не вдалося підібрати образи зараз. Спробуй трохи пізніше."
             })
+
+    def _handle_outfit_photo(self, item_id_text):
+        """Повертає PNG із вирізаним фоном лише для карток сформованих образів."""
+        user_id = self._get_authenticated_user()
+        if user_id is None:
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        try:
+            item_id = int(item_id_text)
+            if item_id <= 0:
+                raise ValueError
+        except ValueError:
+            self._send_json(400, {"error": "invalid_item_id"})
+            return
+
+        cache_key = (user_id, item_id)
+        cached = OUTFIT_CUTOUT_CACHE.get(cache_key)
+        if cached:
+            self._send_bytes(200, cached, "image/png")
+            return
+
+        api_key = (os.getenv("CLEARBACKDROP_API_KEY") or "").strip()
+        if not api_key:
+            self._send_json(503, {
+                "error": "cutout_not_configured",
+                "message": "Сервіс вирізання фону ще не налаштований."
+            })
+            return
+
+        try:
+            rows = database.get_user_wardrobe(user_id, "все")
+            matching = next((row for row in rows if int(row[2]) == item_id), None)
+            if matching is None:
+                self._send_json(404, {"error": "photo_not_found"})
+                return
+            file_id = matching[0]
+            file_meta = requests.get(
+                f"{TELEGRAM_API}/bot{config.TELEGRAM_TOKEN}/getFile",
+                params={"file_id": file_id}, timeout=20,
+            )
+            file_meta.raise_for_status()
+            meta = file_meta.json()
+            file_path = meta.get("result", {}).get("file_path")
+            if not meta.get("ok") or not file_path:
+                raise RuntimeError("Telegram не повернув шлях до фото")
+            original = requests.get(
+                f"{TELEGRAM_FILE_API}/bot{config.TELEGRAM_TOKEN}/{file_path}", timeout=30
+            )
+            original.raise_for_status()
+            photo_bytes = original.content
+            mime = _detect_image_content_type(photo_bytes)
+            if not photo_bytes or not mime:
+                raise RuntimeError("Оригінальне фото має невідомий формат")
+            if len(photo_bytes) > 15 * 1024 * 1024:
+                self._send_json(413, {"error": "photo_too_large", "message": "Фото завелике для обробки."})
+                return
+
+            cutout = requests.post(
+                "https://clearbackdrop.com/api/v1/remove-background",
+                headers={"X-API-Key": api_key},
+                files={"image": (f"wardrobe-{item_id}", photo_bytes, mime)},
+                timeout=(15, 90),
+            )
+            if cutout.status_code == 429:
+                self._send_json(429, {
+                    "error": "cutout_quota_exceeded",
+                    "message": "Сьогодні використано ліміт безкоштовного вирізання фону. Спробуй пізніше."
+                })
+                return
+            if cutout.status_code in (401, 403):
+                LOG.error("ClearBackdrop відхилив API-ключ: status=%s", cutout.status_code)
+                self._send_json(502, {"error": "cutout_auth_failed", "message": "Не вдалося авторизуватися в сервісі вирізання фону."})
+                return
+            cutout.raise_for_status()
+            png_bytes = cutout.content
+            if not png_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise RuntimeError("Сервіс не повернув PNG із прозорим фоном")
+
+            # Невеликий кеш у пам'яті: не змінює оригінал у Telegram/PostgreSQL.
+            if len(OUTFIT_CUTOUT_CACHE) >= OUTFIT_CUTOUT_CACHE_LIMIT:
+                OUTFIT_CUTOUT_CACHE.pop(next(iter(OUTFIT_CUTOUT_CACHE)))
+            OUTFIT_CUTOUT_CACHE[cache_key] = png_bytes
+            self._send_bytes(200, png_bytes, "image/png")
+        except requests.RequestException:
+            LOG.exception("Помилка мережі під час вирізання фону item_id=%s", item_id)
+            self._send_json(502, {"error": "cutout_service_unavailable", "message": "Не вдалося обробити фото. Спробуй ще раз."})
+        except Exception:
+            LOG.exception("Помилка підготовки фото образу item_id=%s", item_id)
+            self._send_json(502, {"error": "cutout_failed", "message": "Не вдалося вирізати фон цього фото."})
 
     def _handle_delete_item(self, item_id):
         user_id = self._get_authenticated_user()
