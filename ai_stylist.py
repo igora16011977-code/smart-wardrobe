@@ -705,3 +705,85 @@ def generate_shopping_recommendation(wardrobe_items: list) -> str:
             "Не вдалося проаналізувати гардероб через Gemini. "
             "Спробуйте ще раз пізніше."
         )
+
+
+
+def generate_wardrobe_outfits(wardrobe_items, outfit_count: int = 3) -> dict:
+    """Підбирає кілька комплектів лише з речей, переданих із гардероба.
+
+    Очікує список словників із полями id/title/description/category/color/material/style.
+    Повертає структурований результат; ID додатково перевіряє сервер.
+    """
+    items = []
+    for item in wardrobe_items or []:
+        try:
+            item_id = int(item.get("id"))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        items.append({
+            "id": item_id,
+            "title": str(item.get("title") or "").strip(),
+            "description": str(item.get("description") or "").strip(),
+            "category": str(item.get("category") or "").strip(),
+            "color": str(item.get("color") or "").strip(),
+            "material": str(item.get("material") or "").strip(),
+            "style": str(item.get("style") or "").strip(),
+        })
+
+    if len(items) < 2:
+        raise ValueError("Для підбору образу потрібно щонайменше дві речі в гардеробі.")
+
+    outfit_count = max(1, min(int(outfit_count), 3))
+    prompt = (
+        "Ти професійний стиліст. Склади " + str(outfit_count) +
+        " різні, гармонійні комплекти одягу ВИКЛЮЧНО з наведених нижче речей.\n"
+        "Не вигадуй одяг, взуття чи аксесуари. Не додавай речі, яких немає у списку.\n"
+        "Кожен комплект має містити щонайменше 2 різні речі; за можливості поєднуй верх, низ і взуття.\n"
+        "Враховуй сумісність кольорів, матеріалів і стилів. Не додавай аксесуари без потреби.\n"
+        "Поверни ЛИШЕ коректний JSON без Markdown і пояснень поза JSON у форматі:\n"
+        '{"outfits":[{"title":"Коротка назва","reason":"Чому речі пасують разом",'
+        '"item_ids":[1,2,3]}]}\n'
+        "Кожен item_ids має містити тільки числові ID зі списку нижче. Не повторюй один ID у комплекті.\n\n"
+        "ГАРДЕРОБ КОРИСТУВАЧА:\n" +
+        json.dumps(items, ensure_ascii=False)
+    )
+
+    raw = _ask_gemini(prompt, max_tokens=1200)
+    # Витягуємо JSON навіть якщо модель випадково додала кодову огорожу.
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.IGNORECASE)
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start < 0 or end <= start:
+        raise RuntimeError("Gemini повернув відповідь у невідомому форматі.")
+    try:
+        result = json.loads(cleaned[start:end + 1])
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Gemini повернув некоректний JSON.") from exc
+
+    allowed_ids = {item["id"] for item in items}
+    outfits = []
+    for outfit in result.get("outfits", []) if isinstance(result, dict) else []:
+        if not isinstance(outfit, dict):
+            continue
+        ids = []
+        for value in outfit.get("item_ids", []):
+            try:
+                item_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if item_id in allowed_ids and item_id not in ids:
+                ids.append(item_id)
+        if len(ids) < 2:
+            continue
+        outfits.append({
+            "title": str(outfit.get("title") or "Образ").strip()[:80],
+            "reason": str(outfit.get("reason") or "Гармонійне поєднання речей із твоєї шафи.").strip()[:500],
+            "item_ids": ids,
+        })
+        if len(outfits) >= outfit_count:
+            break
+
+    if not outfits:
+        raise RuntimeError("Не вдалося сформувати образи з наявних речей. Спробуй ще раз.")
+    return {"outfits": outfits}

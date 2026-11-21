@@ -191,6 +191,9 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
         if parsed.path.rstrip("/") == "/api/wardrobe/refresh":
             self._handle_refresh_wardrobe()
             return
+        if parsed.path.rstrip("/") == "/api/outfits/generate":
+            self._handle_generate_outfits()
+            return
         self._send_json(404, {"error": "not_found"})
 
     def do_DELETE(self):
@@ -371,6 +374,71 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 500,
                 {"error": "refresh_failed", "message": "Не вдалося оновити гардероб. Спробуй пізніше."},
             )
+
+    def _handle_generate_outfits(self):
+        """Генерує образи з речей лише авторизованого користувача."""
+        user_id = self._get_authenticated_user()
+        if user_id is None:
+            self._send_json(401, {"error": "unauthorized"})
+            return
+
+        try:
+            details = database.get_user_wardrobe_details(user_id, "все")
+            photo_rows = database.get_user_wardrobe(user_id, "все")
+            if not details or len(details) < 2:
+                self._send_json(400, {
+                    "error": "not_enough_items",
+                    "message": "Додай щонайменше дві речі, щоб я могла скласти образ."
+                })
+                return
+
+            photos_by_id = {int(row[2]): row[0] for row in photo_rows}
+            wardrobe = [
+                {
+                    "id": int(row[0]), "title": row[1] or row[2] or "",
+                    "description": row[2] or "", "category": row[3] or "",
+                    "color": row[4] or "", "material": row[5] or "",
+                    "style": row[6] or "",
+                }
+                for row in details if int(row[0]) in photos_by_id
+            ]
+            if len(wardrobe) < 2:
+                self._send_json(400, {
+                    "error": "not_enough_items",
+                    "message": "Не знайшлося достатньо доступних фото речей для підбору."
+                })
+                return
+
+            result = ai_stylist.generate_wardrobe_outfits(wardrobe, outfit_count=3)
+            items_by_id = {item["id"]: item for item in wardrobe}
+            safe_outfits = []
+            for outfit in result.get("outfits", []):
+                selected = []
+                for item_id in outfit.get("item_ids", []):
+                    item = items_by_id.get(int(item_id))
+                    if not item:
+                        continue
+                    selected.append({
+                        "id": item["id"], "title": item["title"] or item["description"] or "Річ",
+                        "category": item["category"], "photo_url": f"/api/photo/{item['id']}",
+                    })
+                if len(selected) >= 2:
+                    safe_outfits.append({
+                        "title": outfit.get("title", "Образ"),
+                        "reason": outfit.get("reason", ""),
+                        "items": selected,
+                    })
+
+            if not safe_outfits:
+                self._send_json(502, {"error": "no_outfits", "message": "Не вдалося підібрати образи. Спробуй ще раз."})
+                return
+            self._send_json(200, {"outfits": safe_outfits})
+        except Exception:
+            LOG.exception("Помилка генерації образів user_id=%s", user_id)
+            self._send_json(502, {
+                "error": "outfit_generation_failed",
+                "message": "Не вдалося підібрати образи зараз. Спробуй трохи пізніше."
+            })
 
     def _handle_delete_item(self, item_id):
         user_id = self._get_authenticated_user()

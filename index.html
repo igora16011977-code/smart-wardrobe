@@ -7,7 +7,7 @@
   <title>Моя шафа</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root{color-scheme:light;--bg:#f7f5f1;--card:#fff;--ink:#242321;--muted:#85817b;--line:#e9e5de;--accent:#5e715b;--accent-soft:#e8eee5;--danger:#b53b2e;--danger-soft:#fff0ed;--radius:20px}
+    :root{color-scheme:light;--bg:#f2ebe4;--card:#fbf8f4;--ink:#302a26;--muted:#8c8178;--line:#e7ddd3;--accent:#8b7568;--accent-soft:#eee3da;--danger:#b53b2e;--danger-soft:#fff0ed;--radius:20px}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 calc(24px + env(safe-area-inset-bottom))}
     button,input,textarea,select{font:inherit}.page{width:min(100%,760px);margin:0 auto;padding:22px 16px 0}header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
     .eyebrow{color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 6px}h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.04em;font-weight:750}.header-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}.count{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:650}.refresh-btn{border:1px solid var(--line);background:#fff;color:var(--accent);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}.refresh-btn:disabled{opacity:.6;cursor:wait}
@@ -25,18 +25,28 @@
     .details{margin:14px 0 18px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:0 14px}.detail-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}.detail-row:last-child{border:0}.detail-row strong{font-weight:650}.detail-row span{color:#625e58;text-align:right;overflow-wrap:anywhere}
     .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.action{border:0;border-radius:15px;padding:13px 12px;font-weight:700;cursor:pointer}.action.primary{background:var(--accent);color:#fff}.action.danger{background:var(--danger-soft);color:var(--danger)}.action.secondary{background:#fff;border:1px solid var(--line);color:#625e58}
     .form{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:13px;font-weight:700}.field input,.field textarea,.field select{width:100%;border:1px solid #ded9d1;border-radius:13px;background:#fff;padding:12px 13px;color:var(--ink);outline:none}.field textarea{min-height:86px;resize:vertical}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.form-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}.form-error{display:none;color:var(--danger);font-size:13px;line-height:1.4}.form-error.show{display:block}
+    .outfit-action-wrap{margin:-7px 0 13px}.outfit-btn{border:1px solid #d5bcae;background:#e8d7ca;color:#5d493e;border-radius:14px;padding:11px 17px;font-size:14px;font-weight:750;box-shadow:0 3px 10px rgba(110,80,60,.08);cursor:pointer}.outfit-btn:active{transform:scale(.98)}.outfit-btn:disabled{opacity:.65;cursor:wait}
+    .outfit-intro{color:var(--muted);font-size:13px;line-height:1.45;margin:0 0 14px}.outfit-card{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:13px;margin:0 0 12px}.outfit-card h3{font-size:16px;margin:0 0 6px}.outfit-reason{font-size:13px;line-height:1.45;color:#746960;margin:0 0 12px}.outfit-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.outfit-item{min-width:0}.outfit-item img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:11px;background:#e9dfd6;display:block}.outfit-item span{display:block;font-size:11px;line-height:1.3;margin-top:5px;color:#5f554e;overflow-wrap:anywhere}.outfit-error{padding:13px;background:#fff1ef;border:1px solid #f1d2cc;color:#8b3529;border-radius:13px;font-size:13px;line-height:1.45}
     @media(min-width:600px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.page{padding:30px 22px 0}.modal-backdrop{align-items:center}.modal{border-radius:24px}}
   </style>
 </head>
 <body>
   <main class="page">
     <header><div><p class="eyebrow">Шо одіти? · smart wardrobe</p><h1>Моя шафа</h1><p class="intro">Усі твої речі — в одному зручному місці.</p></div><div class="header-actions"><button class="refresh-btn" id="refreshAll" type="button">🔄 ОНОВИТИ</button><div class="count" id="count">0 речей</div></div></header>
+    <div class="outfit-action-wrap"><button class="outfit-btn" id="generateOutfits" type="button">✨ Підібрати образ</button></div>
     <nav class="filters" aria-label="Категорії гардероба">
       <button class="filter active" data-category="все">Усе</button><button class="filter" data-category="верх">Верх</button><button class="filter" data-category="низ">Низ</button><button class="filter" data-category="взуття">Взуття</button><button class="filter" data-category="аксесуари">Аксесуари</button>
     </nav>
     <div class="status show" id="status"><span class="spinner"></span>Завантажую гардероб…</div>
     <section class="grid" id="grid" aria-live="polite"></section><div class="footer">Твій гардероб завжди під рукою</div>
   </main>
+
+  <div class="modal-backdrop" id="outfitsBackdrop" aria-hidden="true">
+    <section class="modal outfits-modal" role="dialog" aria-modal="true" aria-labelledby="outfitsHeading">
+      <div class="modal-top"><h2 class="modal-heading" id="outfitsHeading">Образи з твоєї шафи</h2><button class="icon-btn" id="closeOutfits" aria-label="Закрити">×</button></div>
+      <div id="outfitsContent"></div>
+    </section>
+  </div>
 
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalHeading">
@@ -53,7 +63,7 @@
     const refreshButton = document.getElementById("refreshAll");
     const backdrop = document.getElementById("modalBackdrop"), modalContent = document.getElementById("modalContent"), modalHeading = document.getElementById("modalHeading");
     let currentCategory = "все", itemsCache = [], photoObjectUrls = new Map(), activeItem = null;
-    if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#f7f5f1"); tg.setBackgroundColor("#f7f5f1"); } catch (_) {} }
+    if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#f2ebe4"); tg.setBackgroundColor("#f2ebe4"); } catch (_) {} }
 
     function authHeaders(json=false) { const h = {"Authorization": `tma ${tg?.initData || ""}`}; if(json) h["Content-Type"]="application/json"; return h; }
     function showStatus(message,isError=false){statusBox.className="status show"+(isError?" error":"");statusBox.textContent=message;}
@@ -81,6 +91,43 @@
         loadPhoto(item).then(url=>{img.onload=()=>{placeholder.style.display="none";img.style.display="block";};img.src=url;}).catch(()=>{placeholder.textContent="Фото недоступне";placeholder.style.fontSize="12px";});
       }
     }
+    const generateOutfitsButton = document.getElementById("generateOutfits");
+    const outfitsBackdrop = document.getElementById("outfitsBackdrop");
+    const outfitsContent = document.getElementById("outfitsContent");
+    function closeOutfits(){outfitsBackdrop.classList.remove("open");outfitsBackdrop.setAttribute("aria-hidden","true");document.body.style.overflow="";}
+    document.getElementById("closeOutfits").addEventListener("click",closeOutfits);
+    outfitsBackdrop.addEventListener("click",e=>{if(e.target===outfitsBackdrop)closeOutfits();});
+    async function generateOutfits(){
+      if(!tg||!tg.initData){showOutfitError("Відкрий вебшафу через Telegram, щоб підтвердити доступ.");return;}
+      generateOutfitsButton.disabled=true;generateOutfitsButton.textContent="⏳ Підбираю образи…";
+      outfitsContent.replaceChildren(safeText("p","outfit-intro","Gemini аналізує речі, кольори та поєднання. Це може зайняти до хвилини…"));
+      outfitsBackdrop.classList.add("open");outfitsBackdrop.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";
+      try{
+        const response=await fetch(`${API_BASE}/api/outfits/generate`,{method:"POST",headers:authHeaders()});
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.message||"Не вдалося підібрати образи.");
+        renderOutfits(data.outfits||[]);
+      }catch(error){showOutfitError(error.message||"Сталася помилка. Спробуй ще раз.");}
+      finally{generateOutfitsButton.disabled=false;generateOutfitsButton.textContent="✨ Підібрати образ";}
+    }
+    function showOutfitError(message){outfitsContent.replaceChildren(safeText("div","outfit-error",message));}
+    async function renderOutfits(outfits){
+      outfitsContent.replaceChildren();
+      if(!outfits.length){showOutfitError("Не вдалося скласти образи з наявних речей. Спробуй ще раз.");return;}
+      outfitsContent.append(safeText("p","outfit-intro","Усі комплекти складені лише з речей, які вже є у твоїй шафі."));
+      for(const outfit of outfits){
+        const card=safeText("article","outfit-card","");
+        card.append(safeText("h3","",outfit.title||"Твій образ"),safeText("p","outfit-reason",outfit.reason||""));
+        const itemsBox=safeText("div","outfit-items","");
+        for(const item of outfit.items||[]){
+          const cell=safeText("div","outfit-item","");const img=document.createElement("img");img.alt=item.title||"Річ із гардероба";img.loading="lazy";
+          const caption=safeText("span","",item.title||categoryLabel(item.category));cell.append(img,caption);itemsBox.append(cell);
+          fetch(`${API_BASE}${item.photo_url}`,{headers:authHeaders()}).then(r=>{if(!r.ok)throw new Error("Фото недоступне");return r.blob();}).then(blob=>{const url=URL.createObjectURL(blob);img.src=url;img.onload=()=>URL.revokeObjectURL(url);}).catch(()=>{img.alt="Фото тимчасово недоступне";img.style.background="#e9dfd6";});
+        }
+        card.append(itemsBox);outfitsContent.append(card);
+      }
+    }
+    generateOutfitsButton.addEventListener("click",generateOutfits);
     async function loadWardrobe(){if(!tg||!tg.initData){countBox.textContent="—";showStatus("Відкрий цю сторінку з кнопки вебшафи всередині Telegram, щоб підтвердити доступ до свого гардероба.",true);return;}
       showStatus("Завантажую гардероб…");try{const r=await fetch(`${API_BASE}/api/wardrobe?category=${encodeURIComponent(currentCategory)}`,{headers:authHeaders()});const data=await r.json();if(!r.ok){if(r.status===401)throw new Error("Не вдалося підтвердити Telegram-сесію. Закрий вебшафу та відкрий її знову через бота.");throw new Error(data.error||"Помилка завантаження гардероба.");}itemsCache=data.items||[];hideStatus();await renderItems(itemsCache);}catch(e){countBox.textContent="—";showStatus(e.message||"Не вдалося завантажити гардероб.",true);}}
     function updateVisibleCard(item){
@@ -111,7 +158,7 @@
     }
     function openModal(title){modalHeading.textContent=title;backdrop.classList.add("open");backdrop.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";}
     function closeModal(){backdrop.classList.remove("open");backdrop.setAttribute("aria-hidden","true");document.body.style.overflow="";activeItem=null;}
-    document.getElementById("closeModal").addEventListener("click",closeModal);backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape"&&backdrop.classList.contains("open"))closeModal();});
+    document.getElementById("closeModal").addEventListener("click",closeModal);backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape"&&backdrop.classList.contains("open"))closeModal();if(e.key==="Escape"&&outfitsBackdrop.classList.contains("open"))closeOutfits();});
     function detailRow(label,value){const row=safeText("div","detail-row","");row.append(safeText("strong","",label),safeText("span","",value||"Не вказано"));return row;}
     async function openDetails(item){activeItem=item;openModal("Картка речі");modalContent.replaceChildren();const loading=safeText("p","", "Завантажую фотографію…");modalContent.append(loading);
       const img=document.createElement("img");img.className="detail-photo";img.alt=item.title||"Фото речі";try{const photoUrl=await loadPhoto(item);img.src=photoUrl;showCardPhoto(item.id,photoUrl);}catch(_){img.alt="Фото недоступне";img.style.display="none";}
