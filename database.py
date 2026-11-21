@@ -339,3 +339,39 @@ def update_clothing_details(
                  int(item_id), int(user_id)),
             )
             return cursor.rowcount > 0
+
+
+def update_missing_clothing_attributes(
+    item_id: int, user_id: int, category: str = "",
+    color: str = "", material: str = "", style: str = "",
+) -> bool:
+    """Заповнює лише порожні характеристики; наявні значення не перезаписує."""
+    category = (category or "").strip().casefold()
+    color = (color or "").strip()
+    material = (material or "").strip()
+    style = (style or "").strip()
+    if category not in {"", "верх", "низ", "взуття", "аксесуари"}:
+        category = ""
+
+    with _db_session() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """UPDATE clothes
+                   SET category = CASE
+                           WHEN COALESCE(BTRIM(category), '') = '' AND %s <> ''
+                           THEN %s ELSE category END,
+                       color = CASE
+                           WHEN COALESCE(BTRIM(color), '') = '' AND %s <> ''
+                           THEN %s ELSE color END,
+                       material = CASE
+                           WHEN COALESCE(BTRIM(material), '') = '' AND %s <> ''
+                           THEN %s ELSE material END,
+                       style = CASE
+                           WHEN COALESCE(BTRIM(style), '') = '' AND %s <> ''
+                           THEN %s ELSE style END
+                   WHERE id = %s AND user_id = %s
+                   RETURNING id""",
+                (category, category, color, color, material, material,
+                 style, style, int(item_id), int(user_id)),
+            )
+            return cursor.fetchone() is not None
