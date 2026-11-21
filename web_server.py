@@ -27,6 +27,7 @@ from PIL import Image, UnidentifiedImageError
 
 import config
 import database
+import ai_stylist
 
 
 LOG = logging.getLogger("wardrobe_web")
@@ -124,7 +125,7 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", allowed)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-            self.send_header("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
             self.send_header("Access-Control-Max-Age", "600")
 
     def _send_bytes(self, status, body, content_type="application/json; charset=utf-8"):
@@ -184,6 +185,13 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not_found"})
             return
         self._handle_update_item(int(match.group(1)))
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path.rstrip("/") == "/api/wardrobe/refresh":
+            self._handle_refresh_wardrobe()
+            return
+        self._send_json(404, {"error": "not_found"})
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
@@ -272,6 +280,97 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
         except Exception:
             LOG.exception("Помилка оновлення речі")
             self._send_json(500, {"error": "server_error"})
+
+    def _handle_refresh_wardrobe(self):
+        """Перевіряє весь гардероб і доповнює лише порожні характеристики."""
+        user_id = self._get_authenticated_user()
+        if user_id is None:
+            self._send_json(401, {"error": "unauthorized"})
+            return
+
+        checked = updated = failed = 0
+        try:
+            details = database.get_user_wardrobe_details(user_id, "все")
+            photo_rows = database.get_user_wardrobe(user_id, "все")
+            photos_by_id = {int(row[2]): row[0] for row in photo_rows}
+
+            for row in details:
+                item_id = int(row[0])
+                old = {
+                    "category": row[3] or "",
+                    "color": row[4] or "",
+                    "material": row[5] or "",
+                    "style": row[6] or "",
+                }
+                missing = [key for key, value in old.items() if not str(value).strip()]
+                if not missing:
+                    continue
+
+                checked += 1
+                file_id = photos_by_id.get(item_id)
+                if not file_id:
+                    failed += 1
+                    LOG.warning("Немає фото для повторного аналізу item_id=%s", item_id)
+                    continue
+
+                try:
+                    api_response = requests.get(
+                        f"{TELEGRAM_API}/bot{config.TELEGRAM_TOKEN}/getFile",
+                        params={"file_id": file_id}, timeout=20,
+                    )
+                    api_response.raise_for_status()
+                    telegram_result = api_response.json()
+                    file_path = telegram_result.get("result", {}).get("file_path")
+                    if not telegram_result.get("ok") or not file_path:
+                        raise RuntimeError("Telegram не повернув шлях до фото")
+
+                    photo_response = requests.get(
+                        f"{TELEGRAM_FILE_API}/bot{config.TELEGRAM_TOKEN}/{file_path}",
+                        timeout=30,
+                    )
+                    photo_response.raise_for_status()
+                    photo_bytes = photo_response.content
+                    if not photo_bytes or not _detect_image_content_type(photo_bytes):
+                        raise RuntimeError("Фото порожнє або має невідомий формат")
+
+                    analyzed = ai_stylist.analyze_clothing_image_structured(photo_bytes)
+                    values = {
+                        key: str(analyzed.get(key) or "").strip()
+                        for key in ("category", "color", "material", "style")
+                    }
+                    # Gemini повертає лише дозволені категорії; решту полів
+                    # передаємо в SQL, де запис відбудеться тільки в порожні поля.
+                    if values["category"].casefold() not in {"верх", "низ", "взуття", "аксесуари"}:
+                        values["category"] = ""
+
+                    saved = database.update_missing_clothing_attributes(
+                        item_id=item_id,
+                        user_id=user_id,
+                        category=values["category"],
+                        color=values["color"],
+                        material=values["material"],
+                        style=values["style"],
+                    )
+                    if saved:
+                        updated += 1
+                    else:
+                        failed += 1
+                except Exception:
+                    failed += 1
+                    LOG.exception("Не вдалося доповнити характеристики item_id=%s", item_id)
+
+            LOG.info(
+                "Масове оновлення гардероба завершено: user_id=%s, "
+                "перевірено=%s, доповнено=%s, помилок=%s",
+                user_id, checked, updated, failed,
+            )
+            self._send_json(200, {"ok": True, "partial_failure": failed > 0})
+        except Exception:
+            LOG.exception("Помилка масового оновлення гардероба user_id=%s", user_id)
+            self._send_json(
+                500,
+                {"error": "refresh_failed", "message": "Не вдалося оновити гардероб. Спробуй пізніше."},
+            )
 
     def _handle_delete_item(self, item_id):
         user_id = self._get_authenticated_user()
