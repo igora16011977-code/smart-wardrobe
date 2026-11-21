@@ -63,18 +63,18 @@ WEB_APP_URL = (os.getenv("WEB_APP_URL") or "").strip()
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"))
 main_keyboard.row(KeyboardButton("🧳 План подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
-main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
 
-# Telegram Mini App запускаємо через InlineKeyboardButton:
-# саме цей спосіб передає Telegram.WebApp.initData для авторизації.
-web_app_keyboard = None
+# Кнопка Mini App розміщена безпосередньо на постійній панелі керування.
+# WEB_APP_URL має бути заданий у змінних середовища Render.
 if WEB_APP_URL:
-    web_app_keyboard = InlineKeyboardMarkup().add(
-        InlineKeyboardButton(
+    main_keyboard.row(
+        KeyboardButton(
             "👗 Відкрити візуальну шафу",
             web_app=WebAppInfo(url=WEB_APP_URL)
         )
     )
+
+main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
 
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -87,11 +87,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=main_keyboard,
         parse_mode="Markdown"
     )
-    if web_app_keyboard:
-        await message.answer(
-            "👗 Відкрий свою візуальну шафу:",
-            reply_markup=web_app_keyboard
-        )
 
 # --- БЛОК 1: 🌤️ ЩО ВДЯГНУТИ СЬОГОДНІ ---
 @dp.message_handler(Text(equals="🌤️ Що вдягнути сьогодні?"), state="*")
