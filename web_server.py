@@ -513,10 +513,27 @@ class WardrobeWebHandler(BaseHTTPRequestHandler):
                 self._send_json(413, {"error": "photo_too_large", "message": "Фото завелике для обробки."})
                 return
 
+            # ClearBackdrop очікує multipart-файл із коректною назвою та розширенням.
+            # Розширення визначаємо за MIME-типом фактичних байтів фото.
+            file_extension = {
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/webp": ".webp",
+                "image/gif": ".gif",
+                "image/bmp": ".bmp",
+                "image/tiff": ".tiff",
+            }.get(mime)
+            if not file_extension:
+                self._send_json(415, {
+                    "error": "unsupported_image_type",
+                    "message": "Формат цього фото не підтримується для вирізання фону."
+                })
+                return
+
             cutout = requests.post(
                 "https://clearbackdrop.com/api/v1/remove-background",
                 headers={"X-API-Key": api_key},
-                files={"image": (f"wardrobe-{item_id}", photo_bytes, mime)},
+                files={"image": (f"wardrobe-{item_id}{file_extension}", photo_bytes, mime)},
                 timeout=(15, 90),
             )
             if cutout.status_code == 429:
