@@ -10,7 +10,7 @@
     :root{color-scheme:light;--bg:#f7f5f1;--card:#fff;--ink:#242321;--muted:#85817b;--line:#e9e5de;--accent:#5e715b;--accent-soft:#e8eee5;--danger:#b53b2e;--danger-soft:#fff0ed;--radius:20px}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 calc(24px + env(safe-area-inset-bottom))}
     button,input,textarea,select{font:inherit}.page{width:min(100%,760px);margin:0 auto;padding:22px 16px 0}header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
-    .eyebrow{color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 6px}h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.04em;font-weight:750}.count{flex:0 0 auto;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:650}
+    .eyebrow{color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 6px}h1{font-size:30px;line-height:1.1;margin:0;letter-spacing:-.04em;font-weight:750}.header-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}.count{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:650}.refresh-btn{border:1px solid var(--line);background:#fff;color:var(--accent);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}.refresh-btn:disabled{opacity:.6;cursor:wait}
     .intro{color:var(--muted);font-size:14px;line-height:1.45;margin:9px 0 0}.filters{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none}.filters::-webkit-scrollbar{display:none}
     .filter{border:1px solid var(--line);background:var(--card);color:#5d5953;border-radius:999px;padding:10px 15px;white-space:nowrap;font-size:13px;font-weight:650;cursor:pointer}.filter.active{background:var(--accent);border-color:var(--accent);color:#fff}
     .status{display:none;padding:13px 15px;margin:4px 0 16px;border-radius:14px;background:#fff;color:#625e58;font-size:14px;line-height:1.45;border:1px solid var(--line)}.status.show{display:block}.status.error{background:#fff1ef;border-color:#f1d2cc;color:#8b3529}
@@ -30,7 +30,7 @@
 </head>
 <body>
   <main class="page">
-    <header><div><p class="eyebrow">Шо одіти? · smart wardrobe</p><h1>Моя шафа</h1><p class="intro">Усі твої речі — в одному зручному місці.</p></div><div class="count" id="count">0 речей</div></header>
+    <header><div><p class="eyebrow">Шо одіти? · smart wardrobe</p><h1>Моя шафа</h1><p class="intro">Усі твої речі — в одному зручному місці.</p></div><div class="header-actions"><button class="refresh-btn" id="refreshAll" type="button">🔄 ОНОВИТИ</button><div class="count" id="count">0 речей</div></div></header>
     <nav class="filters" aria-label="Категорії гардероба">
       <button class="filter active" data-category="все">Усе</button><button class="filter" data-category="верх">Верх</button><button class="filter" data-category="низ">Низ</button><button class="filter" data-category="взуття">Взуття</button><button class="filter" data-category="аксесуари">Аксесуари</button>
     </nav>
@@ -50,6 +50,7 @@
     const tg = window.Telegram?.WebApp;
     const grid = document.getElementById("grid"), statusBox = document.getElementById("status"), countBox = document.getElementById("count");
     const filterButtons = [...document.querySelectorAll(".filter")];
+    const refreshButton = document.getElementById("refreshAll");
     const backdrop = document.getElementById("modalBackdrop"), modalContent = document.getElementById("modalContent"), modalHeading = document.getElementById("modalHeading");
     let currentCategory = "все", itemsCache = [], photoObjectUrls = new Map(), activeItem = null;
     if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor("#f7f5f1"); tg.setBackgroundColor("#f7f5f1"); } catch (_) {} }
@@ -99,6 +100,28 @@
       const error=safeText("div","form-error","");form.append(error);const buttons=document.createElement("div");buttons.className="form-actions";const cancel=safeText("button","action secondary","Скасувати"),save=safeText("button","action primary","✓  Зберегти");cancel.type="button";save.type="submit";cancel.addEventListener("click",()=>openDetails(item));buttons.append(cancel,save);form.append(buttons);
       form.addEventListener("submit",async e=>{e.preventDefault();error.classList.remove("show");save.disabled=true;save.textContent="Зберігаю…";const payload={};for(const key of Object.keys(controls))payload[key]=controls[key].value.trim();try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"PUT",headers:authHeaders(true),body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося зберегти зміни.");closeModal();await loadWardrobe();}catch(err){error.textContent=err.message;error.classList.add("show");}finally{save.disabled=false;save.textContent="✓  Зберегти";}});modalContent.append(form);
     }
+    async function refreshAllWardrobe(){
+      if(refreshButton.disabled)return;
+      refreshButton.disabled=true;refreshButton.textContent="⏳ ОНОВЛЕННЯ…";
+      showStatus("Оновлюю гардероб…");
+      try{
+        const r=await fetch(`${API_BASE}/api/wardrobe/refresh`,{method:"POST",headers:authHeaders()});
+        let data={};try{data=await r.json();}catch(_){}
+        if(!r.ok)throw new Error(data.message||"Не вдалося оновити гардероб.");
+        await loadWardrobe();
+        if(data.partial_failure){
+          showStatus("Не всі речі вдалося оновити. Перевір з’єднання та спробуй ще раз.",true);
+        }else{
+          showStatus("Гардероб оновлено!");
+          setTimeout(()=>{if(statusBox.textContent==="Гардероб оновлено!")hideStatus();},3000);
+        }
+      }catch(e){
+        const offline=!navigator.onLine||e instanceof TypeError;
+        showStatus(offline?"Немає з’єднання. Перевір інтернет і спробуй ще раз.":"Не вдалося оновити гардероб. Спробуй пізніше.",true);
+      }finally{refreshButton.disabled=false;refreshButton.textContent="🔄 ОНОВИТИ";}
+    }
+    refreshButton.addEventListener("click",refreshAllWardrobe);
+
     function askConfirm(message){return new Promise(resolve=>{if(tg?.showConfirm){tg.showConfirm(message,resolve);}else resolve(window.confirm(message));});}
     async function deleteItem(item){const yes=await askConfirm("Видалити цю річ із гардероба? Цю дію не можна скасувати.");if(!yes)return;try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"DELETE",headers:authHeaders()});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося видалити річ.");closeModal();await loadWardrobe();}catch(e){if(tg?.showAlert)tg.showAlert(e.message);else alert(e.message);}}
     filterButtons.forEach(button=>button.addEventListener("click",()=>{if(button.dataset.category===currentCategory)return;currentCategory=button.dataset.category;filterButtons.forEach(b=>b.classList.toggle("active",b===button));loadWardrobe();}));
