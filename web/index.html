@@ -65,7 +65,7 @@
     async function loadPhoto(item){if(photoObjectUrls.has(item.id))return photoObjectUrls.get(item.id);const r=await fetch(`${API_BASE}${item.photo_url}`,{headers:authHeaders()});if(!r.ok)throw new Error(`HTTP ${r.status}`);const blob=await r.blob();if(!blob.size)throw new Error("Порожнє фото");const url=URL.createObjectURL(blob);photoObjectUrls.set(item.id,url);return url;}
     async function renderItems(items){revokeImages();grid.replaceChildren();countBox.textContent=pluralItems(items.length);
       if(!items.length){const empty=document.createElement("div");empty.className="empty";empty.innerHTML='<div class="empty-icon">🧺</div><h2>Тут поки порожньо</h2><p>У цій категорії ще немає речей. Додай фото через Telegram-бота — і вони з’являться тут.</p>';grid.appendChild(empty);return;}
-      for(const item of items){const card=document.createElement("article");card.className="item";card.tabIndex=0;card.setAttribute("role","button");card.setAttribute("aria-label",`Відкрити ${item.title||item.description||"річ"}`);
+      for(const item of items){const card=document.createElement("article");card.className="item";card.dataset.itemId=String(item.id);card.tabIndex=0;card.setAttribute("role","button");card.setAttribute("aria-label",`Відкрити ${item.title||item.description||"річ"}`);
         const wrap=document.createElement("div");wrap.className="photo-wrap";const placeholder=safeText("div","photo-placeholder","👕");const img=document.createElement("img");img.className="photo";img.alt=item.title||item.description||"Річ із гардероба";img.style.display="none";wrap.append(placeholder,img);
         const info=document.createElement("div");info.className="item-info";info.append(safeText("p","category",categoryLabel(item.category)),safeText("p","description",item.title||item.description||"Без назви"));card.append(wrap,info);
         const open=()=>openDetails(item);card.addEventListener("click",open);card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open();}});grid.appendChild(card);
@@ -74,6 +74,32 @@
     }
     async function loadWardrobe(){if(!tg||!tg.initData){countBox.textContent="—";showStatus("Відкрий цю сторінку з кнопки вебшафи всередині Telegram, щоб підтвердити доступ до свого гардероба.",true);return;}
       showStatus("Завантажую гардероб…");try{const r=await fetch(`${API_BASE}/api/wardrobe?category=${encodeURIComponent(currentCategory)}`,{headers:authHeaders()});const data=await r.json();if(!r.ok){if(r.status===401)throw new Error("Не вдалося підтвердити Telegram-сесію. Закрий вебшафу та відкрий її знову через бота.");throw new Error(data.error||"Помилка завантаження гардероба.");}itemsCache=data.items||[];hideStatus();await renderItems(itemsCache);}catch(e){countBox.textContent="—";showStatus(e.message||"Не вдалося завантажити гардероб.",true);}}
+    function updateVisibleCard(item){
+      const index=itemsCache.findIndex(x=>String(x.id)===String(item.id));
+      if(index!==-1)itemsCache[index]={...itemsCache[index],...item};
+      const card=grid.querySelector(`[data-item-id="${CSS.escape(String(item.id))}"]`);
+      const belongsToFilter=currentCategory==="все"||item.category===currentCategory;
+      if(!belongsToFilter){
+        if(index!==-1)itemsCache.splice(index,1);
+        card?.remove();
+        if(photoObjectUrls.has(item.id)){URL.revokeObjectURL(photoObjectUrls.get(item.id));photoObjectUrls.delete(item.id);}
+      }else if(card){
+        const category=card.querySelector(".category"),description=card.querySelector(".description"),img=card.querySelector(".photo");
+        if(category)category.textContent=categoryLabel(item.category);
+        if(description)description.textContent=item.title||item.description||"Без назви";
+        if(img)img.alt=item.title||item.description||"Річ із гардероба";
+        card.setAttribute("aria-label",`Відкрити ${item.title||item.description||"річ"}`);
+      }
+      countBox.textContent=pluralItems(itemsCache.length);
+      if(!itemsCache.length)renderItems([]);
+    }
+    function removeVisibleCard(item){
+      itemsCache=itemsCache.filter(x=>String(x.id)!==String(item.id));
+      grid.querySelector(`[data-item-id="${CSS.escape(String(item.id))}"]`)?.remove();
+      if(photoObjectUrls.has(item.id)){URL.revokeObjectURL(photoObjectUrls.get(item.id));photoObjectUrls.delete(item.id);}
+      countBox.textContent=pluralItems(itemsCache.length);
+      if(!itemsCache.length)renderItems([]);
+    }
     function openModal(title){modalHeading.textContent=title;backdrop.classList.add("open");backdrop.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";}
     function closeModal(){backdrop.classList.remove("open");backdrop.setAttribute("aria-hidden","true");document.body.style.overflow="";activeItem=null;}
     document.getElementById("closeModal").addEventListener("click",closeModal);backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape"&&backdrop.classList.contains("open"))closeModal();});
@@ -98,7 +124,7 @@
         control.name=name;control.value=value;control.required=["title","description","category"].includes(name);wrap.append(control);form.append(wrap);controls[name]=control;
       }
       const error=safeText("div","form-error","");form.append(error);const buttons=document.createElement("div");buttons.className="form-actions";const cancel=safeText("button","action secondary","Скасувати"),save=safeText("button","action primary","✓  Зберегти");cancel.type="button";save.type="submit";cancel.addEventListener("click",()=>openDetails(item));buttons.append(cancel,save);form.append(buttons);
-      form.addEventListener("submit",async e=>{e.preventDefault();error.classList.remove("show");save.disabled=true;save.textContent="Зберігаю…";const payload={};for(const key of Object.keys(controls))payload[key]=controls[key].value.trim();try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"PUT",headers:authHeaders(true),body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося зберегти зміни.");closeModal();await loadWardrobe();}catch(err){error.textContent=err.message;error.classList.add("show");}finally{save.disabled=false;save.textContent="✓  Зберегти";}});modalContent.append(form);
+      form.addEventListener("submit",async e=>{e.preventDefault();error.classList.remove("show");save.disabled=true;save.textContent="Зберігаю…";const payload={};for(const key of Object.keys(controls))payload[key]=controls[key].value.trim();try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"PUT",headers:authHeaders(true),body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося зберегти зміни.");const updatedItem={...item,...payload};closeModal();updateVisibleCard(updatedItem);}catch(err){error.textContent=err.message;error.classList.add("show");}finally{save.disabled=false;save.textContent="✓  Зберегти";}});modalContent.append(form);
     }
     async function refreshAllWardrobe(){
       if(refreshButton.disabled)return;
@@ -123,7 +149,7 @@
     refreshButton.addEventListener("click",refreshAllWardrobe);
 
     function askConfirm(message){return new Promise(resolve=>{if(tg?.showConfirm){tg.showConfirm(message,resolve);}else resolve(window.confirm(message));});}
-    async function deleteItem(item){const yes=await askConfirm("Видалити цю річ із гардероба? Цю дію не можна скасувати.");if(!yes)return;try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"DELETE",headers:authHeaders()});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося видалити річ.");closeModal();await loadWardrobe();}catch(e){if(tg?.showAlert)tg.showAlert(e.message);else alert(e.message);}}
+    async function deleteItem(item){const yes=await askConfirm("Видалити цю річ із гардероба? Цю дію не можна скасувати.");if(!yes)return;try{const r=await fetch(`${API_BASE}/api/wardrobe/${item.id}`,{method:"DELETE",headers:authHeaders()});const data=await r.json();if(!r.ok)throw new Error(data.error||"Не вдалося видалити річ.");closeModal();removeVisibleCard(item);}catch(e){if(tg?.showAlert)tg.showAlert(e.message);else alert(e.message);}}
     filterButtons.forEach(button=>button.addEventListener("click",()=>{if(button.dataset.category===currentCategory)return;currentCategory=button.dataset.category;filterButtons.forEach(b=>b.classList.toggle("active",b===button));loadWardrobe();}));
     loadWardrobe();
   </script>
