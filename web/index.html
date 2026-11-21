@@ -63,6 +63,15 @@
     function categoryLabel(v){return({верх:"Верх",низ:"Низ",взуття:"Взуття",аксесуари:"Аксесуари"})[v]||v||"Річ";}
     function safeText(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;el.textContent=text||"";return el;}
     async function loadPhoto(item){if(photoObjectUrls.has(item.id))return photoObjectUrls.get(item.id);const r=await fetch(`${API_BASE}${item.photo_url}`,{headers:authHeaders()});if(!r.ok)throw new Error(`HTTP ${r.status}`);const blob=await r.blob();if(!blob.size)throw new Error("Порожнє фото");const url=URL.createObjectURL(blob);photoObjectUrls.set(item.id,url);return url;}
+    function showCardPhoto(itemId,url){
+      const card=grid.querySelector(`[data-item-id="${CSS.escape(String(itemId))}"]`);
+      if(!card)return;
+      const img=card.querySelector(".photo"),placeholder=card.querySelector(".photo-placeholder");
+      if(!img||!placeholder)return;
+      img.onload=()=>{placeholder.style.display="none";img.style.display="block";};
+      img.onerror=()=>{img.style.display="none";placeholder.style.display="grid";};
+      img.src=url;
+    }
     async function renderItems(items){revokeImages();grid.replaceChildren();countBox.textContent=pluralItems(items.length);
       if(!items.length){const empty=document.createElement("div");empty.className="empty";empty.innerHTML='<div class="empty-icon">🧺</div><h2>Тут поки порожньо</h2><p>У цій категорії ще немає речей. Додай фото через Telegram-бота — і вони з’являться тут.</p>';grid.appendChild(empty);return;}
       for(const item of items){const card=document.createElement("article");card.className="item";card.dataset.itemId=String(item.id);card.tabIndex=0;card.setAttribute("role","button");card.setAttribute("aria-label",`Відкрити ${item.title||item.description||"річ"}`);
@@ -105,7 +114,7 @@
     document.getElementById("closeModal").addEventListener("click",closeModal);backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal();});document.addEventListener("keydown",e=>{if(e.key==="Escape"&&backdrop.classList.contains("open"))closeModal();});
     function detailRow(label,value){const row=safeText("div","detail-row","");row.append(safeText("strong","",label),safeText("span","",value||"Не вказано"));return row;}
     async function openDetails(item){activeItem=item;openModal("Картка речі");modalContent.replaceChildren();const loading=safeText("p","", "Завантажую фотографію…");modalContent.append(loading);
-      const img=document.createElement("img");img.className="detail-photo";img.alt=item.title||"Фото речі";try{img.src=await loadPhoto(item);}catch(_){img.alt="Фото недоступне";img.style.display="none";}
+      const img=document.createElement("img");img.className="detail-photo";img.alt=item.title||"Фото речі";try{const photoUrl=await loadPhoto(item);img.src=photoUrl;showCardPhoto(item.id,photoUrl);}catch(_){img.alt="Фото недоступне";img.style.display="none";}
       if(activeItem?.id!==item.id)return;modalContent.replaceChildren();modalContent.append(img,safeText("h3","detail-title",item.title||item.description||"Без назви"),safeText("span","pill",categoryLabel(item.category)));
       const details=document.createElement("div");details.className="details";details.append(detailRow("Опис",item.description),detailRow("Колір",item.color),detailRow("Матеріал",item.material),detailRow("Фасон",item.style));modalContent.append(details);
       const actions=document.createElement("div");actions.className="actions";const edit=safeText("button","action primary","✎  Редагувати"),del=safeText("button","action danger","♧  Видалити");edit.type=del.type="button";edit.addEventListener("click",()=>openEdit(item));del.addEventListener("click",()=>deleteItem(item));actions.append(edit,del);modalContent.append(actions);
