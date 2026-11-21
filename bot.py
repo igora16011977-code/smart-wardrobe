@@ -64,17 +64,32 @@ main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
 main_keyboard.row(KeyboardButton("🌤️ Що вдягнути сьогодні?"))
 main_keyboard.row(KeyboardButton("🧳 План подорожі"), KeyboardButton("🛍️ Чого не вистачає?"))
 
-# Кнопка Mini App розміщена безпосередньо на постійній панелі керування.
-# WEB_APP_URL має бути заданий у змінних середовища Render.
+# Постійна кнопка на нижній клавіатурі лише надсилає текст боту.
+# Сам Mini App відкривається окремою inline-кнопкою, щоб Telegram передав initData.
 if WEB_APP_URL:
-    main_keyboard.row(
-        KeyboardButton(
+    main_keyboard.row(KeyboardButton("👗 Відкрити візуальну шафу"))
+
+main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
+
+@dp.message_handler(Text(equals="👗 Відкрити візуальну шафу"), state="*")
+async def open_visual_wardrobe(message: types.Message):
+    if not WEB_APP_URL:
+        await message.answer(
+            "⚠️ Адреса вебшафи не налаштована. Перевір змінну WEB_APP_URL у Render."
+        )
+        return
+
+    webapp_keyboard = InlineKeyboardMarkup().add(
+        InlineKeyboardButton(
             "👗 Відкрити візуальну шафу",
             web_app=WebAppInfo(url=WEB_APP_URL)
         )
     )
+    await message.answer(
+        "✨ Натисни кнопку нижче, щоб відкрити свою візуальну шафу:",
+        reply_markup=webapp_keyboard
+    )
 
-main_keyboard.row(KeyboardButton("⚙️ Змінити місто"))
 
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
